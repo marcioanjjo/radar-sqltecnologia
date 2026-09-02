@@ -1,0 +1,11 @@
+{
+    "require": {
+        "slim/slim": "*",
+        "slim/psr7": "*",
+        "slim/csrf": "*",
+        "google/apiclient": "*",
+        "phpmailer/phpmailer": "*",
+        "vlucas/phpdotenv": "*",
+        "guzzlehttp/guzzle": "*"
+    }
+}

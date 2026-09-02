@@ -1,0 +1,60 @@
+services:
+  # Servidor Web PHP + Apache
+  web:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: radar_noticias_app
+    restart: unless-stopped
+    ports:
+      - "8080:80"
+    volumes:
+      - .:/var/www/html
+    environment:
+      - DB_HOST=db
+      - DB_NAME=radar_db
+      - DB_USER=radar_user
+      - DB_PASS=radar_password_secret
+    depends_on:
+      - db
+    networks:
+      - radar-net
+
+  # Banco de Dados MySQL
+  db:
+    image: mysql:8.0
+    container_name: radar_noticias_db
+    restart: unless-stopped
+    environment:
+      MYSQL_DATABASE: radar_db
+      MYSQL_USER: radar_user
+      MYSQL_PASSWORD: radar_password_secret
+      MYSQL_ROOT_PASSWORD: root_password_secret
+    ports:
+      - "3306:3306"
+    volumes:
+      - db_data:/var/lib/mysql
+    networks:
+      - radar-net
+
+  # Interface phpMyAdmin para gerenciar o banco localmente
+  phpmyadmin:
+    image: phpmyadmin/phpmyadmin
+    container_name: radar_noticias_pma
+    restart: unless-stopped
+    ports:
+      - "8081:80"
+    environment:
+      PMA_HOST: db
+      MYSQL_ROOT_PASSWORD: root_password_secret
+    depends_on:
+      - db
+    networks:
+      - radar-net
+
+volumes:
+  db_data:
+
+networks:
+  radar-net:
+    driver: bridge

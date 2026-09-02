@@ -1,0 +1,15 @@
+# Dependências do Composer (nunca devem ir para o repositório)
+/vendor/
+
+# Arquivos de ambiente e credenciais sensíveis
+.env
+.env.local
+
+# Arquivos temporários e do sistema
+.DS_Store
+Thumbs.db
+*.log
+
+# Pastas de IDEs
+.vscode/
+.idea/
