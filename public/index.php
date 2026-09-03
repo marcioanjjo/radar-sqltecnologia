@@ -4,23 +4,62 @@ declare(strict_types=1);
 
 use App\Config\Database;
 use Dotenv\Dotenv;
+use Psr\Http\Message\ResponseInterface as Response;
+use Psr\Http\Message\ServerRequestInterface as Request;
+use Slim\Factory\AppFactory;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
+//carrega a variável de ambiente (.env)
 $dotenv = Dotenv::createImmutable(__DIR__ . '/../');
 $dotenv->load();
 
-try {
-    $pdo = Database::getConnection();
-    echo "<h2 style='color: green;'>✔ Conexão PDO (Singleton) estabelecida com sucesso!</h2>";
+//Instancia a aplicação Slim
+$app = AppFactory::create();
 
-    //teste de consulta simples
-    $stmt = $pdo->query("SELECT DATABASE() AS banco_atual, VERSION() AS versao_mysql");
-    $resultado = $stmt->fetch(PDO::FETCH_ASSOC);
-    echo "<h2 style='color: blue;'>Informações do Banco de Dados:</h2>";
-    echo "<p><strong>Banco Atual:</strong> " . htmlspecialchars($resultado['banco_atual']) . "</p>";
-    echo "<p><strong>Versão MySQL:</strong> " . htmlspecialchars($resultado['versao_mysql']) . "</p>";
-} catch (\Throwable $e) {
-    echo "<h2 style='color: red;'>❌Falha na conexão.</h2>";
-    echo "<pre>" . htmlspecialchars($e->getMessage()) . "</pre>";
-}
+//Middlewares Essenciais
+$app->addBodyParsingMiddleware(); // Permite receber payloads JSON no corpo da requisição (Webhook)
+$app->addRoutingMiddleware(); // Permite o roteamento das requisições
+
+//Habilita exibição detalhada de erros apenas em desenvolvimento
+$debug = filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOLEAN);
+$app->addErrorMiddleware($debug, true, true);
+
+// Rota inicial de boas vindas
+$app->get('/', function (Request $request, Response $response): Response {
+    $response->getBody()->write(json_encode([
+        'projeto' => $_ENV['APP_NAME'] ?? 'Radar Notícias',
+        'status'  => 'online',
+        'horario' => date('Y-m-d H:i:s')
+    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+
+    return $response->withHeader('Content-Type', 'application/json');
+});
+
+//Rota de Verificação do Banco de Dados (Health Check)
+$app->get('/health-db', function (Request $request, Response $response): Response {
+    try {
+        $pdo = Database::getConnection();
+        $stmt = $pdo->query('SELECT 1'); // Executa uma consulta simples para verificar a conexão
+        $ok = (bool) $stmt->fetchColumn();
+
+        $dados = [
+            'database' => 'Conectado',
+            'health'   => $ok ? 'ok' : 'falha'
+
+        ];
+        $statusCode = 200;
+    } catch (\Throwable $e) {
+        $dados = [
+            'database' => 'erro',
+            'mensagem' => $e->getMessage()
+        ];
+        $statusCode = 500;
+    }
+
+    $response->getBody()->write(json_encode($dados, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
+    return $response->withHeader('Content-Type', 'application/json')->withStatus($statusCode);
+});
+
+//Executa a aplicação
+$app->run();
