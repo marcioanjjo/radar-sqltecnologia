@@ -1,0 +1,2 @@
+# Garante que todo arquivo de texto use LF no repositório
+* text=auto eol=lf
