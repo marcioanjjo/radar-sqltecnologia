@@ -13,3 +13,6 @@ Thumbs.db
 # Pastas de IDEs
 .vscode/
 .idea/
+
+# Arquivos pessoas
+credencias do google auth 2.0.txt

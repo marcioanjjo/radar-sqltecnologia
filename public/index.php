@@ -7,6 +7,11 @@ use Dotenv\Dotenv;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
 use Slim\Factory\AppFactory;
+use App\Controllers\WebhookController;
+use App\Middlewares\TokenAuthMiddleware;
+use App\Controllers\AuthController;
+use App\Middlewares\AdminAuthMiddleware;
+use Slim\Routing\RouteCollectorProxy;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
@@ -60,6 +65,41 @@ $app->get('/health-db', function (Request $request, Response $response): Respons
     $response->getBody()->write(json_encode($dados, JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
     return $response->withHeader('Content-Type', 'application/json')->withStatus($statusCode);
 });
+
+// Rota do Webhook protegida pelo TokenAuthMiddleware
+$app->post('/api/v1/noticias/webhook', [WebhookController::class, 'receberNoticia'])
+    ->add(new TokenAuthMiddleware());
+
+
+// Rotas de Autenticação
+$app->get('/admin/login', [AuthController::class, 'login']);
+$app->get('/admin/auth/google/callback', [AuthController::class, 'callback']);
+$app->get('/admin/logout', [AuthController::class, 'logout']);
+
+// Grupo Protegido do Painel Administrativo
+$app->group('/admin', function (RouteCollectorProxy $group) {
+
+    $group->get('/dashboard', function (Request $request, Response $response): Response {
+        if (session_status() !== PHP_SESSION_ACTIVE) {
+            session_start();
+        }
+        $user = $_SESSION['admin_user'];
+
+        $html = "
+        <!DOCTYPE html>
+        <html lang='pt-BR'>
+        <head><meta charset='UTF-8'><title>Dashboard - Radar Notícias</title></head>
+        <body style='font-family: sans-serif; padding: 2rem;'>
+            <h1>Painel Administrativo</h1>
+            <p>Sessão iniciada como: <strong>" . htmlspecialchars($user['nome']) . "</strong> (" . htmlspecialchars($user['email']) . ")</p>
+            <p><a href='/admin/logout'>Terminar Sessão</a></p>
+        </body>
+        </html>";
+
+        $response->getBody()->write($html);
+        return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
+    });
+})->add(new AdminAuthMiddleware());
 
 //Executa a aplicação
 $app->run();
