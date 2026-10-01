@@ -102,8 +102,10 @@ $app->group('/admin', function (RouteCollectorProxy $group) {
         return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
     });
 
-    // Gestão Editorial de Notícias (Agora no nível do grupo /admin)
+    // Gestão Editorial de Notícias
     $group->get('/noticias', [NoticiaAdminController::class, 'index']);
+    $group->get('/noticias/nova', [NoticiaAdminController::class, 'criar']);
+    $group->post('/noticias/guardar', [NoticiaAdminController::class, 'guardar']);
     $group->get('/noticias/{id:[0-9]+}/editar', [NoticiaAdminController::class, 'editar']);
     $group->post('/noticias/{id:[0-9]+}/atualizar', [NoticiaAdminController::class, 'atualizar']);
 })->add(new AdminAuthMiddleware());

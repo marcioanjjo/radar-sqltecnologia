@@ -11,7 +11,7 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 class NoticiaAdminController
 {
-    // Listagem geral com filtros de estado
+    // Listagem geral com filtros de estado e botão de nova notícia
     public function index(Request $request, Response $response): Response
     {
         $pdo = Database::getConnection();
@@ -36,6 +36,66 @@ class NoticiaAdminController
         $html = $this->renderizarLista($noticias, $filtroStatus);
         $response->getBody()->write($html);
         return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
+    }
+
+    // Formulário para criação de nova notícia manual
+    public function criar(Request $request, Response $response): Response
+    {
+        $html = $this->renderizarFormularioCriacao();
+        $response->getBody()->write($html);
+        return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
+    }
+
+    // Processa a gravação da nova notícia manual no banco
+    public function guardar(Request $request, Response $response): Response
+    {
+        $data = (array) $request->getParsedBody();
+
+        $titulo           = trim($data['titulo'] ?? '');
+        $categoria        = trim($data['categoria'] ?? '');
+        $conteudoResumo   = trim($data['conteudo_resumo'] ?? '');
+        $conteudoCompleto = trim($data['conteudo_completo'] ?? '');
+        $opiniaoEditorial = trim($data['opiniao_editorial'] ?? '');
+        $imagemDestaque   = trim($data['imagem_destaque'] ?? '');
+        $status           = in_array($data['status'] ?? '', ['rascunho', 'publicado'], true)
+            ? $data['status']
+            : 'rascunho';
+
+        if (empty($titulo) || empty($categoria) || empty($conteudoResumo) || empty($conteudoCompleto)) {
+            $response->getBody()->write("Preencha todos os campos obrigatórios.");
+            return $response->withStatus(400);
+        }
+
+        $baseSlug = $this->gerarSlug($titulo);
+        $slug = $baseSlug;
+
+        $pdo = Database::getConnection();
+
+        // Garante que o slug seja único
+        $stmt = $pdo->prepare("SELECT COUNT(1) FROM noticias WHERE slug = :slug");
+        $stmt->execute([':slug' => $slug]);
+        if ((int)$stmt->fetchColumn() > 0) {
+            $slug .= '-' . time();
+        }
+
+        $sql = "INSERT INTO noticias 
+                (titulo, slug, categoria, conteudo_resumo, conteudo_completo, opiniao_editorial, imagem_destaque, origem, status, criado_em)
+                VALUES 
+                (:titulo, :slug, :categoria, :resumo, :completo, :opiniao, :imagem, 'manual', :status, NOW())";
+
+        $stmt = $pdo->prepare($sql);
+        $stmt->execute([
+            ':titulo'   => $titulo,
+            ':slug'     => $slug,
+            ':categoria' => $categoria,
+            ':resumo'   => $conteudoResumo,
+            ':completo' => $conteudoCompleto,
+            ':opiniao'  => empty($opiniaoEditorial) ? null : $opiniaoEditorial,
+            ':imagem'   => empty($imagemDestaque) ? null : $imagemDestaque,
+            ':status'   => $status
+        ]);
+
+        return $response->withHeader('Location', '/admin/noticias')->withStatus(302);
     }
 
     // Formulário de Edição / Revisão Editorial
@@ -98,6 +158,16 @@ class NoticiaAdminController
         return $response->withHeader('Location', '/admin/noticias')->withStatus(302);
     }
 
+    private function gerarSlug(string $texto): string
+    {
+        $slug = mb_strtolower($texto, 'UTF-8');
+        $slug = preg_replace('~[^\pL\d]+~u', '-', $slug);
+        $slug = iconv('utf-8', 'us-ascii//TRANSLIT', $slug);
+        $slug = preg_replace('~[^-\w]+~', '', $slug);
+        $slug = trim($slug, '-');
+        return preg_replace('~-+~', '-', $slug) ?: 'noticia-' . time();
+    }
+
     private function renderizarLista(array $noticias, string $filtro): string
     {
         $linhas = '';
@@ -150,10 +220,13 @@ class NoticiaAdminController
                     </div>
                 </div>
 
-                <div class='nav-links' style='margin-bottom: 20px;'>
-                    <a href='/admin/noticias' class='" . ($filtro === 'todos' ? 'active' : '') . "'>Todas</a>
-                    <a href='/admin/noticias?status=rascunho' class='" . ($filtro === 'rascunho' ? 'active' : '') . "'>Rascunhos (Pendentes)</a>
-                    <a href='/admin/noticias?status=publicado' class='" . ($filtro === 'publicado' ? 'active' : '') . "'>Publicadas</a>
+                <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;'>
+                    <div class='nav-links'>
+                        <a href='/admin/noticias' class='" . ($filtro === 'todos' ? 'active' : '') . "'>Todas</a>
+                        <a href='/admin/noticias?status=rascunho' class='" . ($filtro === 'rascunho' ? 'active' : '') . "'>Rascunhos (Pendentes)</a>
+                        <a href='/admin/noticias?status=publicado' class='" . ($filtro === 'publicado' ? 'active' : '') . "'>Publicadas</a>
+                    </div>
+                    <a href='/admin/noticias/nova' style='background: #16a34a; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 0.9rem;'>+ Nova Notícia</a>
                 </div>
 
                 <table>
@@ -245,6 +318,80 @@ class NoticiaAdminController
                     <div style='margin-top: 24px;'>
                         <button type='submit' class='btn'>Guardar Alterações</button>
                         <a href='/admin/noticias' class='btn-cancel'>Voltar à Lista</a>
+                    </div>
+                </form>
+            </div>
+        </body>
+        </html>";
+    }
+
+    private function renderizarFormularioCriacao(): string
+    {
+        return "
+        <!DOCTYPE html>
+        <html lang='pt-BR'>
+        <head>
+            <meta charset='UTF-8'>
+            <title>Nova Notícia - Radar Notícias</title>
+            <style>
+                body { font-family: system-ui, -apple-system, sans-serif; background: #f9fafb; margin: 0; padding: 24px; color: #111827; }
+                .container { max-width: 900px; margin: 0 auto; background: white; padding: 28px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+                .field { margin-bottom: 20px; }
+                label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.9rem; }
+                input[type='text'], select, textarea { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; font-family: inherit; }
+                textarea { resize: vertical; }
+                .editorial-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 16px; border-radius: 6px; }
+                .btn { background: #16a34a; color: white; padding: 12px 24px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
+                .btn:hover { background: #15803d; }
+                .btn-cancel { color: #4b5563; text-decoration: none; margin-left: 15px; }
+            </style>
+        </head>
+        <body>
+            <div class='container'>
+                <h2>Redigir Nova Notícia Autoral</h2>
+                <form action='/admin/noticias/guardar' method='POST'>
+                    <div class='field'>
+                        <label>Título da Notícia *</label>
+                        <input type='text' name='titulo' placeholder='Ex: Nova atualização do ecossistema PHP foca em performance' required>
+                    </div>
+
+                    <div style='display: flex; gap: 20px;'>
+                        <div class='field' style='flex: 1;'>
+                            <label>Categoria *</label>
+                            <input type='text' name='categoria' placeholder='Ex: Tecnologia, Desenvolvimento, IA' required>
+                        </div>
+                        <div class='field' style='flex: 1;'>
+                            <label>Estado de Publicação</label>
+                            <select name='status'>
+                                <option value='rascunho'>Rascunho (Salvar para rever depois)</option>
+                                <option value='publicado'>Publicar Imediatamente</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class='field'>
+                        <label>URL da Imagem de Destaque (Opcional)</label>
+                        <input type='text' name='imagem_destaque' placeholder='https://exemplo.com/imagem.jpg'>
+                    </div>
+
+                    <div class='field'>
+                        <label>Resumo Curto (SEO / Chamada de Capa) *</label>
+                        <textarea name='conteudo_resumo' rows='3' placeholder='Breve descrição do tema que chamará a atenção do leitor...' required></textarea>
+                    </div>
+
+                    <div class='field'>
+                        <label>Conteúdo Completo da Matéria *</label>
+                        <textarea name='conteudo_completo' rows='10' placeholder='Desenvolva o corpo principal do artigo aqui...' required></textarea>
+                    </div>
+
+                    <div class='field editorial-box'>
+                        <label style='color: #166534;'>Parecer do Editor / Considerações Finais</label>
+                        <textarea name='opiniao_editorial' rows='4' placeholder='Comentários analíticos próprios, impactos práticos e visão autoral...'></textarea>
+                    </div>
+
+                    <div style='margin-top: 24px;'>
+                        <button type='submit' class='btn'>Criar Matéria</button>
+                        <a href='/admin/noticias' class='btn-cancel'>Cancelar</a>
                     </div>
                 </form>
             </div>
