@@ -12,6 +12,7 @@ use App\Middlewares\TokenAuthMiddleware;
 use App\Controllers\AuthController;
 use App\Middlewares\AdminAuthMiddleware;
 use Slim\Routing\RouteCollectorProxy;
+use App\Controllers\NoticiaAdminController;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
@@ -92,6 +93,7 @@ $app->group('/admin', function (RouteCollectorProxy $group) {
         <body style='font-family: sans-serif; padding: 2rem;'>
             <h1>Painel Administrativo</h1>
             <p>Sessão iniciada como: <strong>" . htmlspecialchars($user['nome']) . "</strong> (" . htmlspecialchars($user['email']) . ")</p>
+            <p><a href='/admin/noticias'>Ir para Redação de Notícias</a></p>
             <p><a href='/admin/logout'>Terminar Sessão</a></p>
         </body>
         </html>";
@@ -99,6 +101,11 @@ $app->group('/admin', function (RouteCollectorProxy $group) {
         $response->getBody()->write($html);
         return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
     });
+
+    // Gestão Editorial de Notícias (Agora no nível do grupo /admin)
+    $group->get('/noticias', [NoticiaAdminController::class, 'index']);
+    $group->get('/noticias/{id:[0-9]+}/editar', [NoticiaAdminController::class, 'editar']);
+    $group->post('/noticias/{id:[0-9]+}/atualizar', [NoticiaAdminController::class, 'atualizar']);
 })->add(new AdminAuthMiddleware());
 
 //Executa a aplicação
