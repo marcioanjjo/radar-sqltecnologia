@@ -13,6 +13,7 @@ use App\Controllers\AuthController;
 use App\Middlewares\AdminAuthMiddleware;
 use Slim\Routing\RouteCollectorProxy;
 use App\Controllers\NoticiaAdminController;
+use App\Controllers\PortalController;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
@@ -32,7 +33,7 @@ $debug = filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOLEAN);
 $app->addErrorMiddleware($debug, true, true);
 
 // Rota inicial de boas vindas
-$app->get('/', function (Request $request, Response $response): Response {
+/* $app->get('/', function (Request $request, Response $response): Response {
     $response->getBody()->write(json_encode([
         'projeto' => $_ENV['APP_NAME'] ?? 'Radar Notícias',
         'status'  => 'online',
@@ -40,7 +41,11 @@ $app->get('/', function (Request $request, Response $response): Response {
     ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
 
     return $response->withHeader('Content-Type', 'application/json');
-});
+}); */
+
+// Rotas Públicas do Portal de Notícias
+$app->get('/', [PortalController::class, 'index']);
+$app->get('/noticia/{slug}', [PortalController::class, 'artigo']);
 
 //Rota de Verificação do Banco de Dados (Health Check)
 $app->get('/health-db', function (Request $request, Response $response): Response {
