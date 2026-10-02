@@ -59,6 +59,28 @@ class PortalController
         return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
     }
 
+    // Página institucional: Termos de Uso
+    public function termos(Request $request, Response $response): Response
+    {
+        $html = $this->renderizarPaginaInstitucional(
+            'Termos de Uso',
+            'O conteúdo publicado no Radar Notícias possui caráter exclusivamente informativo e analítico. Todo o material autoral é protegido por direitos autorais sob a chancela da SQL Tecnologia.'
+        );
+        $response->getBody()->write($html);
+        return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
+    }
+
+    // Página institucional: Política de Privacidade (Essencial para Google AdSense)
+    public function privacidade(Request $request, Response $response): Response
+    {
+        $html = $this->renderizarPaginaInstitucional(
+            'Política de Privacidade',
+            'O Radar Notícias respeita a privacidade de seus utilizadores. Utilizamos identificadores e cookies técnicos para análise de métricas anonimizadas e veiculação de anúncios através do Google AdSense. Em conformidade com a LGPD, nenhum dado sensível ou identificável é armazenado sem consentimento.'
+        );
+        $response->getBody()->write($html);
+        return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
+    }
+
     private function registarLeitura(PDO $pdo, int $noticiaId, Request $request): void
     {
         try {
@@ -82,7 +104,7 @@ class PortalController
                 ':user_agent' => $userAgent
             ]);
         } catch (\Throwable $e) {
-            // Falhas de telemetria não devem interromper o leitor
+            // Falhas secundárias de telemetria não devem interromper o leitor
         }
     }
 
@@ -111,6 +133,8 @@ class PortalController
             $cards = "<p style='text-align: center; color: #6b7280; grid-column: 1 / -1; padding: 40px;'>Nenhuma notícia publicada até ao momento.</p>";
         }
 
+        $footer = $this->renderizarFooter();
+
         return "
         <!DOCTYPE html>
         <html lang='pt-BR'>
@@ -119,10 +143,10 @@ class PortalController
             <meta name='viewport' content='width=device-width, initial-scale=1.0'>
             <title>Radar Notícias - Tecnologia e Inovação</title>
             <style>
-                body { font-family: system-ui, -apple-system, sans-serif; background: #f9fafb; margin: 0; color: #111827; }
+                body { font-family: system-ui, -apple-system, sans-serif; background: #f9fafb; margin: 0; color: #111827; display: flex; flex-direction: column; min-height: 100vh; }
                 header { background: #1e293b; color: white; padding: 1.25rem 2rem; border-bottom: 3px solid #2563eb; }
                 .nav-container { max-width: 1100px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
-                .grid { max-width: 1100px; margin: 40px auto; padding: 0 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; }
+                .grid { max-width: 1100px; margin: 40px auto; padding: 0 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; flex-grow: 1; width: 100%; box-sizing: border-box; }
             </style>
         </head>
         <body>
@@ -135,6 +159,7 @@ class PortalController
             <main class='grid'>
                 {$cards}
             </main>
+            {$footer}
         </body>
         </html>";
     }
@@ -160,6 +185,8 @@ class PortalController
             </p>";
         }
 
+        $footer = $this->renderizarFooter();
+
         return "
         <!DOCTYPE html>
         <html lang='pt-BR'>
@@ -169,10 +196,10 @@ class PortalController
             <title>" . htmlspecialchars($noticia['titulo']) . " - Radar Notícias</title>
             <meta name='description' content='" . htmlspecialchars($noticia['conteudo_resumo']) . "'>
             <style>
-                body { font-family: system-ui, -apple-system, sans-serif; background: #f9fafb; margin: 0; color: #111827; }
+                body { font-family: system-ui, -apple-system, sans-serif; background: #f9fafb; margin: 0; color: #111827; display: flex; flex-direction: column; min-height: 100vh; }
                 header { background: #1e293b; color: white; padding: 1.25rem 2rem; border-bottom: 3px solid #2563eb; }
                 .nav-container { max-width: 800px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
-                .content-container { max-width: 800px; margin: 40px auto; padding: 0 20px; background: white; border-radius: 8px; border: 1px solid #e5e7eb; box-sizing: border-box; }
+                .content-container { max-width: 800px; width: 100%; margin: 40px auto; padding: 32px 24px; background: white; border-radius: 8px; border: 1px solid #e5e7eb; box-sizing: border-box; flex-grow: 1; }
                 .article-body { font-size: 1.1rem; line-height: 1.8; color: #374151; }
             </style>
         </head>
@@ -183,7 +210,7 @@ class PortalController
                     <a href='/' style='color: #cbd5e1; text-decoration: none; font-size: 0.9rem;'>← Início</a>
                 </div>
             </header>
-            <main class='content-container' style='padding: 32px;'>
+            <main class='content-container'>
                 <span style='color: #2563eb; font-weight: 700; font-size: 0.85rem; text-transform: uppercase;'>" . htmlspecialchars($noticia['categoria']) . "</span>
                 <h1 style='font-size: 2.1rem; line-height: 1.3; margin: 12px 0 16px 0;'>" . htmlspecialchars($noticia['titulo']) . "</h1>
                 <p style='color: #6b7280; font-size: 0.9rem; margin-bottom: 24px;'>Publicado em {$dataPublicacao} • " . (int)$noticia['cliques_total'] . " leituras</p>
@@ -197,6 +224,66 @@ class PortalController
                 {$seccaoEditorial}
                 {$seccaoFonte}
             </main>
+            {$footer}
+        </body>
+        </html>";
+    }
+
+    private function renderizarFooter(): string
+    {
+        $anoAtual = date('Y');
+        return "
+        <footer style='background: #0f172a; color: #94a3b8; padding: 40px 20px; margin-top: 60px; border-top: 1px solid #334155; font-size: 0.9rem;'>
+            <div style='max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 16px;'>
+                <div>
+                    <strong style='color: white; font-size: 1.1rem;'>Radar Notícias</strong>
+                    <p style='margin: 6px 0 0 0; color: #64748b;'>Curadoria tecnológica, análises editoriais e inovação.</p>
+                </div>
+
+                <div style='display: flex; gap: 20px; font-size: 0.85rem;'>
+                    <a href='/termos' style='color: #cbd5e1; text-decoration: none;'>Termos de Uso</a>
+                    <span style='color: #475569;'>•</span>
+                    <a href='/privacidade' style='color: #cbd5e1; text-decoration: none;'>Política de Privacidade</a>
+                    <span style='color: #475569;'>•</span>
+                    <a href='https://sqltecnologia.inf.br' target='_blank' rel='noopener noreferrer' style='color: #38bdf8; text-decoration: none; font-weight: 500;'>SQL Tecnologia</a>
+                </div>
+
+                <div style='border-top: 1px solid #1e293b; width: 100%; max-width: 600px; padding-top: 16px; font-size: 0.8rem; color: #64748b;'>
+                    © {$anoAtual} <strong>SQLTECNOLOGIA.INF.BR</strong> — Todos os direitos reservados.
+                </div>
+            </div>
+        </footer>";
+    }
+
+    private function renderizarPaginaInstitucional(string $titulo, string $texto): string
+    {
+        $footer = $this->renderizarFooter();
+        return "
+        <!DOCTYPE html>
+        <html lang='pt-BR'>
+        <head>
+            <meta charset='UTF-8'>
+            <meta name='viewport' content='width=device-width, initial-scale=1.0'>
+            <title>{$titulo} - Radar Notícias</title>
+            <style>
+                body { font-family: system-ui, -apple-system, sans-serif; background: #f9fafb; margin: 0; color: #111827; display: flex; flex-direction: column; min-height: 100vh; }
+                header { background: #1e293b; color: white; padding: 1.25rem 2rem; border-bottom: 3px solid #2563eb; }
+                .nav-container { max-width: 800px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+                .content { max-width: 800px; width: 100%; margin: 40px auto; padding: 32px 24px; background: white; border-radius: 8px; border: 1px solid #e5e7eb; box-sizing: border-box; flex-grow: 1; }
+            </style>
+        </head>
+        <body>
+            <header>
+                <div class='nav-container'>
+                    <h1 style='margin: 0; font-size: 1.5rem;'><a href='/' style='color: white; text-decoration: none;'>Radar Notícias</a></h1>
+                    <a href='/' style='color: #cbd5e1; text-decoration: none; font-size: 0.9rem;'>← Início</a>
+                </div>
+            </header>
+            <main class='content'>
+                <h1 style='margin-top: 0;'>{$titulo}</h1>
+                <p style='line-height: 1.7; color: #374151; font-size: 1.05rem;'>{$texto}</p>
+            </main>
+            {$footer}
         </body>
         </html>";
     }

@@ -46,6 +46,9 @@ $app->addErrorMiddleware($debug, true, true);
 // Rotas Públicas do Portal de Notícias
 $app->get('/', [PortalController::class, 'index']);
 $app->get('/noticia/{slug}', [PortalController::class, 'artigo']);
+$app->get('/termos', [PortalController::class, 'termos']);
+$app->get('/privacidade', [PortalController::class, 'privacidade']);
+
 
 //Rota de Verificação do Banco de Dados (Health Check)
 $app->get('/health-db', function (Request $request, Response $response): Response {
