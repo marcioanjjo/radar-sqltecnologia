@@ -11,17 +11,15 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 class NoticiaAdminController
 {
-    // Listagem geral com filtros de estado e botão de nova notícia
     public function index(Request $request, Response $response): Response
     {
         $pdo = Database::getConnection();
         $params = $request->getQueryParams();
         $filtroStatus = $params['status'] ?? 'todos';
 
-        $sql = "SELECT id, titulo, categoria, origem, status, cliques_total, criado_em 
-                FROM noticias";
-
+        $sql = "SELECT id, titulo, categoria, origem, status, cliques_total, criado_em FROM noticias";
         $binds = [];
+
         if (in_array($filtroStatus, ['rascunho', 'publicado', 'arquivado'], true)) {
             $sql .= " WHERE status = :status";
             $binds[':status'] = $filtroStatus;
@@ -38,7 +36,6 @@ class NoticiaAdminController
         return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
     }
 
-    // Formulário para criação de nova notícia manual
     public function criar(Request $request, Response $response): Response
     {
         $html = $this->renderizarFormularioCriacao();
@@ -46,7 +43,6 @@ class NoticiaAdminController
         return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
     }
 
-    // Processa a gravação da nova notícia manual no banco
     public function guardar(Request $request, Response $response): Response
     {
         $data = (array) $request->getParsedBody();
@@ -57,6 +53,7 @@ class NoticiaAdminController
         $conteudoCompleto = trim($data['conteudo_completo'] ?? '');
         $opiniaoEditorial = trim($data['opiniao_editorial'] ?? '');
         $imagemDestaque   = trim($data['imagem_destaque'] ?? '');
+        $videoUrl         = trim($data['video_url'] ?? '');
         $status           = in_array($data['status'] ?? '', ['rascunho', 'publicado'], true)
             ? $data['status']
             : 'rascunho';
@@ -71,7 +68,6 @@ class NoticiaAdminController
 
         $pdo = Database::getConnection();
 
-        // Garante que o slug seja único
         $stmt = $pdo->prepare("SELECT COUNT(1) FROM noticias WHERE slug = :slug");
         $stmt->execute([':slug' => $slug]);
         if ((int)$stmt->fetchColumn() > 0) {
@@ -79,26 +75,26 @@ class NoticiaAdminController
         }
 
         $sql = "INSERT INTO noticias 
-                (titulo, slug, categoria, conteudo_resumo, conteudo_completo, opiniao_editorial, imagem_destaque, origem, status, criado_em)
+                (titulo, slug, categoria, conteudo_resumo, conteudo_completo, opiniao_editorial, imagem_destaque, video_url, origem, status, criado_em)
                 VALUES 
-                (:titulo, :slug, :categoria, :resumo, :completo, :opiniao, :imagem, 'manual', :status, NOW())";
+                (:titulo, :slug, :categoria, :resumo, :completo, :opiniao, :imagem, :video_url, 'manual', :status, NOW())";
 
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
-            ':titulo'   => $titulo,
-            ':slug'     => $slug,
+            ':titulo'    => $titulo,
+            ':slug'      => $slug,
             ':categoria' => $categoria,
-            ':resumo'   => $conteudoResumo,
-            ':completo' => $conteudoCompleto,
-            ':opiniao'  => empty($opiniaoEditorial) ? null : $opiniaoEditorial,
-            ':imagem'   => empty($imagemDestaque) ? null : $imagemDestaque,
-            ':status'   => $status
+            ':resumo'    => $conteudoResumo,
+            ':completo'  => $conteudoCompleto,
+            ':opiniao'   => empty($opiniaoEditorial) ? null : $opiniaoEditorial,
+            ':imagem'    => empty($imagemDestaque) ? null : $imagemDestaque,
+            ':video_url' => empty($videoUrl) ? null : $videoUrl,
+            ':status'    => $status
         ]);
 
         return $response->withHeader('Location', '/admin/noticias')->withStatus(302);
     }
 
-    // Formulário de Edição / Revisão Editorial
     public function editar(Request $request, Response $response, array $args): Response
     {
         $id = (int) $args['id'];
@@ -118,18 +114,19 @@ class NoticiaAdminController
         return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
     }
 
-    // Gravação das Alterações Editoriais
     public function atualizar(Request $request, Response $response, array $args): Response
     {
         $id = (int) $args['id'];
         $data = (array) $request->getParsedBody();
 
-        $titulo          = trim($data['titulo'] ?? '');
-        $categoria       = trim($data['categoria'] ?? '');
-        $conteudoResumo  = trim($data['conteudo_resumo'] ?? '');
+        $titulo           = trim($data['titulo'] ?? '');
+        $categoria        = trim($data['categoria'] ?? '');
+        $conteudoResumo   = trim($data['conteudo_resumo'] ?? '');
         $conteudoCompleto = trim($data['conteudo_completo'] ?? '');
         $opiniaoEditorial = trim($data['opiniao_editorial'] ?? '');
-        $status          = in_array($data['status'] ?? '', ['rascunho', 'publicado', 'arquivado'], true)
+        $imagemDestaque   = trim($data['imagem_destaque'] ?? '');
+        $videoUrl         = trim($data['video_url'] ?? '');
+        $status           = in_array($data['status'] ?? '', ['rascunho', 'publicado', 'arquivado'], true)
             ? $data['status']
             : 'rascunho';
 
@@ -140,19 +137,23 @@ class NoticiaAdminController
                     conteudo_resumo = :resumo,
                     conteudo_completo = :completo,
                     opiniao_editorial = :opiniao,
+                    imagem_destaque = :imagem,
+                    video_url = :video_url,
                     status = :status,
                     atualizado_em = NOW()
                 WHERE id = :id";
 
         $stmt = $pdo->prepare($sql);
         $stmt->execute([
-            ':titulo'   => $titulo,
+            ':titulo'    => $titulo,
             ':categoria' => $categoria,
-            ':resumo'   => $conteudoResumo,
-            ':completo' => $conteudoCompleto,
-            ':opiniao'  => empty($opiniaoEditorial) ? null : $opiniaoEditorial,
-            ':status'   => $status,
-            ':id'       => $id
+            ':resumo'    => $conteudoResumo,
+            ':completo'  => $conteudoCompleto,
+            ':opiniao'   => empty($opiniaoEditorial) ? null : $opiniaoEditorial,
+            ':imagem'    => empty($imagemDestaque) ? null : $imagemDestaque,
+            ':video_url' => empty($videoUrl) ? null : $videoUrl,
+            ':status'    => $status,
+            ':id'        => $id
         ]);
 
         return $response->withHeader('Location', '/admin/noticias')->withStatus(302);
@@ -252,7 +253,7 @@ class NoticiaAdminController
 
     private function renderizarFormulario(array $noticia): string
     {
-        $selRascunho = $noticia['status'] === 'rascunho' ? 'selected' : '';
+        $selRascunho  = $noticia['status'] === 'rascunho' ? 'selected' : '';
         $selPublicado = $noticia['status'] === 'publicado' ? 'selected' : '';
         $selArquivado = $noticia['status'] === 'arquivado' ? 'selected' : '';
 
@@ -270,6 +271,7 @@ class NoticiaAdminController
                 input[type='text'], select, textarea { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; font-family: inherit; }
                 textarea { resize: vertical; }
                 .editorial-box { background: #eff6ff; border: 1px solid #bfdbfe; padding: 16px; border-radius: 6px; }
+                .media-box { background: #faf5ff; border: 1px solid #e9d5ff; padding: 16px; border-radius: 6px; }
                 .btn { background: #2563eb; color: white; padding: 12px 24px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
                 .btn:hover { background: #1d4ed8; }
                 .btn-cancel { color: #4b5563; text-decoration: none; margin-left: 15px; }
@@ -299,6 +301,20 @@ class NoticiaAdminController
                         </div>
                     </div>
 
+                    <div class='field media-box'>
+                        <label style='color: #6b21a8;'>Mídias do Artigo (Imagens e Vídeos)</label>
+                        <div style='display: flex; gap: 15px; margin-top: 8px;'>
+                            <div style='flex: 1;'>
+                                <label style='font-size: 0.8rem; color: #7e22ce;'>URL da Imagem de Destaque</label>
+                                <input type='text' name='imagem_destaque' value='" . htmlspecialchars($noticia['imagem_destaque'] ?? '') . "' placeholder='https://exemplo.com/imagem.jpg'>
+                            </div>
+                            <div style='flex: 1;'>
+                                <label style='font-size: 0.8rem; color: #7e22ce;'>Vídeo (YouTube ou MP4 direto)</label>
+                                <input type='text' name='video_url' value='" . htmlspecialchars($noticia['video_url'] ?? '') . "' placeholder='https://www.youtube.com/watch?v=... ou https://.../video.mp4'>
+                            </div>
+                        </div>
+                    </div>
+
                     <div class='field'>
                         <label>Resumo Curto (Apresentação / Meta Description)</label>
                         <textarea name='conteudo_resumo' rows='3' required>" . htmlspecialchars($noticia['conteudo_resumo']) . "</textarea>
@@ -311,7 +327,7 @@ class NoticiaAdminController
 
                     <div class='field editorial-box'>
                         <label style='color: #1e40af;'>Análise Editorial Própria (AdSense Compliance)</label>
-                        <small style='display: block; color: #3b82f6; margin-bottom: 8px;'>Adicione a sua análise técnica, impacto de mercado ou conclusão autoral para gerar valor acrescentado e proteger a monetização.</small>
+                        <small style='display: block; color: #3b82f6; margin-bottom: 8px;'>Adicione a sua análise técnica, impacto de mercado ou conclusão autoral.</small>
                         <textarea name='opiniao_editorial' rows='4' placeholder='Insira a sua visão técnica sobre esta notícia...'>" . htmlspecialchars($noticia['opiniao_editorial'] ?? '') . "</textarea>
                     </div>
 
@@ -341,6 +357,7 @@ class NoticiaAdminController
                 input[type='text'], select, textarea { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; font-family: inherit; }
                 textarea { resize: vertical; }
                 .editorial-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 16px; border-radius: 6px; }
+                .media-box { background: #faf5ff; border: 1px solid #e9d5ff; padding: 16px; border-radius: 6px; }
                 .btn { background: #16a34a; color: white; padding: 12px 24px; border: none; border-radius: 6px; font-weight: bold; cursor: pointer; }
                 .btn:hover { background: #15803d; }
                 .btn-cancel { color: #4b5563; text-decoration: none; margin-left: 15px; }
@@ -369,9 +386,18 @@ class NoticiaAdminController
                         </div>
                     </div>
 
-                    <div class='field'>
-                        <label>URL da Imagem de Destaque (Opcional)</label>
-                        <input type='text' name='imagem_destaque' placeholder='https://exemplo.com/imagem.jpg'>
+                    <div class='field media-box'>
+                        <label style='color: #6b21a8;'>Mídias do Artigo (Imagens e Vídeos)</label>
+                        <div style='display: flex; gap: 15px; margin-top: 8px;'>
+                            <div style='flex: 1;'>
+                                <label style='font-size: 0.8rem; color: #7e22ce;'>URL da Imagem de Destaque</label>
+                                <input type='text' name='imagem_destaque' placeholder='https://exemplo.com/imagem.jpg'>
+                            </div>
+                            <div style='flex: 1;'>
+                                <label style='font-size: 0.8rem; color: #7e22ce;'>Vídeo (YouTube ou MP4 direto)</label>
+                                <input type='text' name='video_url' placeholder='https://www.youtube.com/watch?v=... ou https://.../video.mp4'>
+                            </div>
+                        </div>
                     </div>
 
                     <div class='field'>

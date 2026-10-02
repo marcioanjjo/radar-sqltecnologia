@@ -11,7 +11,6 @@ use Psr\Http\Message\ServerRequestInterface as Request;
 
 class PortalController
 {
-    // Ecrã Inicial / Feed de Notícias Públicas
     public function index(Request $request, Response $response): Response
     {
         $pdo = Database::getConnection();
@@ -31,7 +30,6 @@ class PortalController
         return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
     }
 
-    // Leitura Completa da Matéria por Slug
     public function artigo(Request $request, Response $response, array $args): Response
     {
         $slug = $args['slug'] ?? '';
@@ -51,7 +49,6 @@ class PortalController
             return $response->withStatus(404)->withHeader('Content-Type', 'text/html; charset=UTF-8');
         }
 
-        // Registo e contabilização da leitura/clique
         $this->registarLeitura($pdo, (int)$noticia['id'], $request);
 
         $html = $this->renderizarArtigo($noticia);
@@ -59,7 +56,6 @@ class PortalController
         return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
     }
 
-    // Página institucional: Termos de Uso
     public function termos(Request $request, Response $response): Response
     {
         $html = $this->renderizarPaginaInstitucional(
@@ -70,7 +66,6 @@ class PortalController
         return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
     }
 
-    // Página institucional: Política de Privacidade (Essencial para Google AdSense)
     public function privacidade(Request $request, Response $response): Response
     {
         $html = $this->renderizarPaginaInstitucional(
@@ -84,11 +79,9 @@ class PortalController
     private function registarLeitura(PDO $pdo, int $noticiaId, Request $request): void
     {
         try {
-            // Incrementa o contador total da matéria
             $stmtUpdate = $pdo->prepare("UPDATE noticias SET cliques_total = cliques_total + 1 WHERE id = :id");
             $stmtUpdate->execute([':id' => $noticiaId]);
 
-            // Registo analítico anonimizado para métricas
             $serverParams = $request->getServerParams();
             $ip = $serverParams['REMOTE_ADDR'] ?? '0.0.0.0';
             $ipHash = hash('sha256', $ip);
@@ -104,8 +97,38 @@ class PortalController
                 ':user_agent' => $userAgent
             ]);
         } catch (\Throwable $e) {
-            // Falhas secundárias de telemetria não devem interromper o leitor
         }
+    }
+
+    private function renderizarPlayerVideo(?string $videoUrl): string
+    {
+        if (empty($videoUrl)) {
+            return '';
+        }
+
+        // Extrai o ID se for link do YouTube (desktop, encurtado youtu.be, shorts ou embed)
+        $youtubePattern = '%^(?:https?://)?(?:www\.)?(?:youtu\.be/|youtube\.com/(?:watch\?v=|embed/|v/|shorts/))([\w-]{11})%x';
+        if (preg_match($youtubePattern, $videoUrl, $matches)) {
+            $videoId = $matches[1];
+            return "
+            <div style='position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; border-radius: 8px; margin: 2rem 0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);'>
+                <iframe 
+                    src='https://www.youtube.com/embed/{$videoId}' 
+                    style='position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;' 
+                    allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture' 
+                    allowfullscreen>
+                </iframe>
+            </div>";
+        }
+
+        // Se for arquivo de vídeo direto (ex: MP4, WebM hospedado)
+        return "
+        <div style='margin: 2rem 0;'>
+            <video controls style='width: 100%; border-radius: 8px; max-height: 480px; background: #000; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);'>
+                <source src='" . htmlspecialchars($videoUrl) . "'>
+                Seu navegador não suporta a tag de vídeo.
+            </video>
+        </div>";
     }
 
     private function renderizarCapa(array $noticias): string
@@ -114,7 +137,7 @@ class PortalController
         foreach ($noticias as $item) {
             $dataPublicacao = date('d/m/Y H:i', strtotime($item['criado_em']));
             $cards .= "
-            <article style='background: white; border-radius: 8px; border: 1px solid #e5e7eb; overflow: hidden; display: flex; flex-direction: column; transition: box-shadow 0.2s;'>
+            <article style='background: white; border-radius: 8px; border: 1px solid #e5e7eb; overflow: hidden; display: flex; flex-direction: column;'>
                 <div style='padding: 20px; flex-grow: 1; display: flex; flex-direction: column;'>
                     <span style='color: #2563eb; font-weight: 700; font-size: 0.8rem; text-transform: uppercase; margin-bottom: 8px;'>" . htmlspecialchars($item['categoria']) . "</span>
                     <h2 style='font-size: 1.25rem; line-height: 1.4; margin: 0 0 10px 0;'>
@@ -168,6 +191,8 @@ class PortalController
     {
         $dataPublicacao = date('d/m/Y \à\s H:i', strtotime($noticia['criado_em']));
 
+        $playerVideo = $this->renderizarPlayerVideo($noticia['video_url'] ?? null);
+
         $seccaoEditorial = '';
         if (!empty($noticia['opiniao_editorial'])) {
             $seccaoEditorial = "
@@ -216,6 +241,8 @@ class PortalController
                 <p style='color: #6b7280; font-size: 0.9rem; margin-bottom: 24px;'>Publicado em {$dataPublicacao} • " . (int)$noticia['cliques_total'] . " leituras</p>
                 
                 <p style='font-size: 1.15rem; color: #4b5563; font-style: italic; border-left: 3px solid #9ca3af; padding-left: 14px; margin-bottom: 30px;'>" . htmlspecialchars($noticia['conteudo_resumo']) . "</p>
+
+                {$playerVideo}
 
                 <div class='article-body'>
                     " . nl2br(htmlspecialchars($noticia['conteudo_completo'])) . "
