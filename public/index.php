@@ -40,7 +40,19 @@ $app->get('/termos', [PortalController::class, 'termos']);
 $app->get('/privacidade', [PortalController::class, 'privacidade']);
 // Rota Pública de Redirecionamento e Rastreamento de Afiliados
 $app->get('/ir/{id:[0-9]+}', [AfiliadoController::class, 'redirecionar']);
+// Rota para o ficheiro ads.txt (Google AdSense Compliance)
+$app->get('/ads.txt', function (Request $request, Response $response): Response {
+    $caminhoFicheiro = __DIR__ . '/ads.txt';
 
+    if (!file_exists($caminhoFicheiro)) {
+        $response->getBody()->write("# ads.txt ainda nao configurado");
+        return $response->withHeader('Content-Type', 'text/plain; charset=UTF-8')->withStatus(404);
+    }
+
+    $conteudo = file_get_contents($caminhoFicheiro);
+    $response->getBody()->write($conteudo);
+    return $response->withHeader('Content-Type', 'text/plain; charset=UTF-8');
+});
 
 //Rota de Verificação do Banco de Dados (Health Check)
 $app->get('/health-db', function (Request $request, Response $response): Response {
