@@ -49,9 +49,18 @@ class PortalController
             return $response->withStatus(404)->withHeader('Content-Type', 'text/html; charset=UTF-8');
         }
 
+        // Procura divulgações ou anúncios especificamente vinculados a esta matéria
+        $stmtLinks = $pdo->prepare("
+            SELECT id, titulo 
+            FROM links_afiliados 
+            WHERE noticia_id = :noticia_id AND ativo = 1
+        ");
+        $stmtLinks->execute([':noticia_id' => $noticia['id']]);
+        $linksAfiliados = $stmtLinks->fetchAll(PDO::FETCH_ASSOC);
+
         $this->registarLeitura($pdo, (int)$noticia['id'], $request);
 
-        $html = $this->renderizarArtigo($noticia);
+        $html = $this->renderizarArtigo($noticia, $linksAfiliados);
         $response->getBody()->write($html);
         return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
     }
@@ -106,7 +115,6 @@ class PortalController
             return '';
         }
 
-        // Extrai o ID se for link do YouTube (desktop, encurtado youtu.be, shorts ou embed)
         $youtubePattern = '%^(?:https?://)?(?:www\.)?(?:youtu\.be/|youtube\.com/(?:watch\?v=|embed/|v/|shorts/))([\w-]{11})%x';
         if (preg_match($youtubePattern, $videoUrl, $matches)) {
             $videoId = $matches[1];
@@ -121,12 +129,11 @@ class PortalController
             </div>";
         }
 
-        // Se for arquivo de vídeo direto (ex: MP4, WebM hospedado)
         return "
         <div style='margin: 2rem 0;'>
             <video controls style='width: 100%; border-radius: 8px; max-height: 480px; background: #000; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);'>
                 <source src='" . htmlspecialchars($videoUrl) . "'>
-                Seu navegador não suporta a tag de vídeo.
+                Seu navegador não suporta o formato deste vídeo.
             </video>
         </div>";
     }
@@ -187,7 +194,7 @@ class PortalController
         </html>";
     }
 
-    private function renderizarArtigo(array $noticia): string
+    private function renderizarArtigo(array $noticia, array $linksAfiliados = []): string
     {
         $dataPublicacao = date('d/m/Y \à\s H:i', strtotime($noticia['criado_em']));
 
@@ -200,6 +207,27 @@ class PortalController
                 <h4 style='color: #1e40af; margin-top: 0; margin-bottom: 8px;'>Análise do Radar</h4>
                 <p style='color: #1e3a8a; line-height: 1.6; margin: 0; font-size: 0.95rem;'>" . nl2br(htmlspecialchars($noticia['opiniao_editorial'])) . "</p>
             </aside>";
+        }
+
+        // Renderiza apenas se houver links especificamente vinculados à notícia
+        $seccaoAfiliados = '';
+        if (!empty($linksAfiliados)) {
+            $seccaoAfiliados = "
+            <div style='background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 20px; margin: 2rem 0;'>
+                <h4 style='margin: 0 0 12px 0; color: #0f172a; font-size: 1rem;'>Recomendações e Divulgação Relacionada</h4>
+                <ul style='list-style: none; padding: 0; margin: 0;'>";
+
+            foreach ($linksAfiliados as $link) {
+                $seccaoAfiliados .= "
+                    <li style='margin-bottom: 10px;'>
+                        <a href='/ir/" . (int)$link['id'] . "' target='_blank' rel='nofollow sponsored noopener' style='display: inline-flex; align-items: center; gap: 8px; color: #2563eb; font-weight: 600; text-decoration: none;'>
+                            <span style='background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; text-transform: uppercase;'>Parceria</span>
+                            " . htmlspecialchars($link['titulo']) . " &rarr;
+                        </a>
+                    </li>";
+            }
+
+            $seccaoAfiliados .= "</ul></div>";
         }
 
         $seccaoFonte = '';
@@ -249,6 +277,7 @@ class PortalController
                 </div>
 
                 {$seccaoEditorial}
+                {$seccaoAfiliados}
                 {$seccaoFonte}
             </main>
             {$footer}

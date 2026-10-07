@@ -14,6 +14,7 @@ use App\Middlewares\AdminAuthMiddleware;
 use Slim\Routing\RouteCollectorProxy;
 use App\Controllers\NoticiaAdminController;
 use App\Controllers\PortalController;
+use App\Controllers\AfiliadoController;
 
 require_once __DIR__ . '/../vendor/autoload.php';
 
@@ -32,22 +33,13 @@ $app->addRoutingMiddleware(); // Permite o roteamento das requisições
 $debug = filter_var($_ENV['APP_DEBUG'] ?? false, FILTER_VALIDATE_BOOLEAN);
 $app->addErrorMiddleware($debug, true, true);
 
-// Rota inicial de boas vindas
-/* $app->get('/', function (Request $request, Response $response): Response {
-    $response->getBody()->write(json_encode([
-        'projeto' => $_ENV['APP_NAME'] ?? 'Radar Notícias',
-        'status'  => 'online',
-        'horario' => date('Y-m-d H:i:s')
-    ], JSON_UNESCAPED_UNICODE | JSON_PRETTY_PRINT));
-
-    return $response->withHeader('Content-Type', 'application/json');
-}); */
-
 // Rotas Públicas do Portal de Notícias
 $app->get('/', [PortalController::class, 'index']);
 $app->get('/noticia/{slug}', [PortalController::class, 'artigo']);
 $app->get('/termos', [PortalController::class, 'termos']);
 $app->get('/privacidade', [PortalController::class, 'privacidade']);
+// Rota Pública de Redirecionamento e Rastreamento de Afiliados
+$app->get('/ir/{id:[0-9]+}', [AfiliadoController::class, 'redirecionar']);
 
 
 //Rota de Verificação do Banco de Dados (Health Check)
@@ -102,6 +94,7 @@ $app->group('/admin', function (RouteCollectorProxy $group) {
             <h1>Painel Administrativo</h1>
             <p>Sessão iniciada como: <strong>" . htmlspecialchars($user['nome']) . "</strong> (" . htmlspecialchars($user['email']) . ")</p>
             <p><a href='/admin/noticias'>Ir para Redação de Notícias</a></p>
+            <p><a href='/admin/afiliados'>Gerir Links de Afiliados</a></p>
             <p><a href='/admin/logout'>Terminar Sessão</a></p>
         </body>
         </html>";
@@ -116,6 +109,11 @@ $app->group('/admin', function (RouteCollectorProxy $group) {
     $group->post('/noticias/guardar', [NoticiaAdminController::class, 'guardar']);
     $group->get('/noticias/{id:[0-9]+}/editar', [NoticiaAdminController::class, 'editar']);
     $group->post('/noticias/{id:[0-9]+}/atualizar', [NoticiaAdminController::class, 'atualizar']);
+
+    // Gestão de Links de Afiliados
+    $group->get('/afiliados', [AfiliadoController::class, 'listar']);
+    $group->get('/afiliados/novo', [AfiliadoController::class, 'criar']);
+    $group->post('/afiliados/guardar', [AfiliadoController::class, 'guardar']);
 })->add(new AdminAuthMiddleware());
 
 //Executa a aplicação
