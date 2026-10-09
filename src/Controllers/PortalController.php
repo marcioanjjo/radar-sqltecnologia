@@ -1,5 +1,4 @@
 <?php
-
 declare(strict_types=1);
 
 namespace App\Controllers;
@@ -109,6 +108,23 @@ class PortalController
         }
     }
 
+    // Gerador de Slot de Publicidade Responsivo (AdSense Compliance)
+    private function renderizarBlocoPublicidade(string $tipo = 'horizontal'): string
+    {
+        $estiloDimensoes = $tipo === 'horizontal' 
+            ? 'min-height: 90px; width: 100%; max-width: 728px;' 
+            : 'min-height: 250px; width: 100%; max-width: 300px;';
+
+        return "
+        <div style='margin: 2rem auto; text-align: center;'>
+            <span style='display: block; font-size: 0.7rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;'>Publicidade</span>
+            <div style='background: #f1f5f9; border: 1px dashed #cbd5e1; border-radius: 6px; margin: 0 auto; display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 0.85rem; font-weight: 500; {$estiloDimensoes}'>
+                <!-- Espaço Reservado para o Google AdSense / Bloco {$tipo} -->
+                Espaço Publicitário (AdSense / Banner Parceiro)
+            </div>
+        </div>";
+    }
+
     private function renderizarPlayerVideo(?string $videoUrl): string
     {
         if (empty($videoUrl)) {
@@ -163,6 +179,7 @@ class PortalController
             $cards = "<p style='text-align: center; color: #6b7280; grid-column: 1 / -1; padding: 40px;'>Nenhuma notícia publicada até ao momento.</p>";
         }
 
+        $adTopo = $this->renderizarBlocoPublicidade('horizontal');
         $footer = $this->renderizarFooter();
 
         return "
@@ -176,7 +193,7 @@ class PortalController
                 body { font-family: system-ui, -apple-system, sans-serif; background: #f9fafb; margin: 0; color: #111827; display: flex; flex-direction: column; min-height: 100vh; }
                 header { background: #1e293b; color: white; padding: 1.25rem 2rem; border-bottom: 3px solid #2563eb; }
                 .nav-container { max-width: 1100px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
-                .grid { max-width: 1100px; margin: 40px auto; padding: 0 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; flex-grow: 1; width: 100%; box-sizing: border-box; }
+                .grid { max-width: 1100px; margin: 30px auto; padding: 0 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; flex-grow: 1; width: 100%; box-sizing: border-box; }
             </style>
         </head>
         <body>
@@ -186,6 +203,12 @@ class PortalController
                     <a href='/admin/dashboard' style='color: #cbd5e1; text-decoration: none; font-size: 0.9rem;'>Área do Redator</a>
                 </div>
             </header>
+
+            <!-- Slot de Anúncio Superior na Capa -->
+            <div style='max-width: 1100px; width: 100%; margin: 20px auto 0 auto; padding: 0 20px; box-sizing: border-box;'>
+                {$adTopo}
+            </div>
+
             <main class='grid'>
                 {$cards}
             </main>
@@ -197,8 +220,9 @@ class PortalController
     private function renderizarArtigo(array $noticia, array $linksAfiliados = []): string
     {
         $dataPublicacao = date('d/m/Y \à\s H:i', strtotime($noticia['criado_em']));
-
+        
         $playerVideo = $this->renderizarPlayerVideo($noticia['video_url'] ?? null);
+        $adArtigo = $this->renderizarBlocoPublicidade('horizontal');
 
         $seccaoEditorial = '';
         if (!empty($noticia['opiniao_editorial'])) {
@@ -209,7 +233,6 @@ class PortalController
             </aside>";
         }
 
-        // Renderiza apenas se houver links especificamente vinculados à notícia
         $seccaoAfiliados = '';
         if (!empty($linksAfiliados)) {
             $seccaoAfiliados = "
@@ -275,6 +298,9 @@ class PortalController
                 <div class='article-body'>
                     " . nl2br(htmlspecialchars($noticia['conteudo_completo'])) . "
                 </div>
+
+                <!-- Slot de Anúncio In-Article -->
+                {$adArtigo}
 
                 {$seccaoEditorial}
                 {$seccaoAfiliados}
