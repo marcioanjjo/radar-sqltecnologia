@@ -8,6 +8,7 @@ use App\Config\Database;
 use PDO;
 use Psr\Http\Message\ResponseInterface as Response;
 use Psr\Http\Message\ServerRequestInterface as Request;
+use Psr\Http\Message\UploadedFileInterface;
 
 class NoticiaAdminController
 {
@@ -46,6 +47,7 @@ class NoticiaAdminController
     public function guardar(Request $request, Response $response): Response
     {
         $data = (array) $request->getParsedBody();
+        $uploadedFiles = $request->getUploadedFiles();
 
         $titulo           = trim($data['titulo'] ?? '');
         $categoria        = trim($data['categoria'] ?? '');
@@ -61,6 +63,14 @@ class NoticiaAdminController
         if (empty($titulo) || empty($categoria) || empty($conteudoResumo) || empty($conteudoCompleto)) {
             $response->getBody()->write("Preencha todos os campos obrigatórios.");
             return $response->withStatus(400);
+        }
+
+        // Processa upload de arquivo local caso tenha sido enviado
+        if (isset($uploadedFiles['arquivo_imagem'])) {
+            $caminhoUpload = $this->processarUploadImagem($uploadedFiles['arquivo_imagem']);
+            if ($caminhoUpload !== null) {
+                $imagemDestaque = $caminhoUpload;
+            }
         }
 
         $baseSlug = $this->gerarSlug($titulo);
@@ -118,6 +128,7 @@ class NoticiaAdminController
     {
         $id = (int) $args['id'];
         $data = (array) $request->getParsedBody();
+        $uploadedFiles = $request->getUploadedFiles();
 
         $titulo           = trim($data['titulo'] ?? '');
         $categoria        = trim($data['categoria'] ?? '');
@@ -129,6 +140,14 @@ class NoticiaAdminController
         $status           = in_array($data['status'] ?? '', ['rascunho', 'publicado', 'arquivado'], true)
             ? $data['status']
             : 'rascunho';
+
+        // Processa upload de imagem caso o usuário tenha subido um novo arquivo
+        if (isset($uploadedFiles['arquivo_imagem'])) {
+            $caminhoUpload = $this->processarUploadImagem($uploadedFiles['arquivo_imagem']);
+            if ($caminhoUpload !== null) {
+                $imagemDestaque = $caminhoUpload;
+            }
+        }
 
         $pdo = Database::getConnection();
         $sql = "UPDATE noticias SET 
@@ -157,6 +176,32 @@ class NoticiaAdminController
         ]);
 
         return $response->withHeader('Location', '/admin/noticias')->withStatus(302);
+    }
+
+    private function processarUploadImagem(UploadedFileInterface $arquivo): ?string
+    {
+        if ($arquivo->getError() !== UPLOAD_ERR_OK) {
+            return null;
+        }
+
+        $extensao = strtolower(pathinfo($arquivo->getClientFilename() ?? '', PATHINFO_EXTENSION));
+        $extensoesPermitidas = ['jpg', 'jpeg', 'png', 'webp', 'gif'];
+
+        if (!in_array($extensao, $extensoesPermitidas, true)) {
+            return null;
+        }
+
+        $diretorioUpload = __DIR__ . '/../../public/uploads';
+        if (!is_dir($diretorioUpload)) {
+            mkdir($diretorioUpload, 0755, true);
+        }
+
+        $nomeArquivo = sprintf('img_%s_%s.%s', date('Ymd_His'), bin2hex(random_bytes(4)), $extensao);
+        $caminhoFisico = $diretorioUpload . DIRECTORY_SEPARATOR . $nomeArquivo;
+
+        $arquivo->moveTo($caminhoFisico);
+
+        return '/uploads/' . $nomeArquivo;
     }
 
     private function gerarSlug(string $texto): string
@@ -257,6 +302,15 @@ class NoticiaAdminController
         $selPublicado = $noticia['status'] === 'publicado' ? 'selected' : '';
         $selArquivado = $noticia['status'] === 'arquivado' ? 'selected' : '';
 
+        $previewImagem = '';
+        if (!empty($noticia['imagem_destaque'])) {
+            $previewImagem = "
+            <div style='margin-top: 8px;'>
+                <small style='color: #6b7280; display: block;'>Imagem atual cadastrada:</small>
+                <img src='" . htmlspecialchars($noticia['imagem_destaque']) . "' alt='Preview' style='max-height: 90px; border-radius: 4px; border: 1px solid #d1d5db; margin-top: 4px;'>
+            </div>";
+        }
+
         return "
         <!DOCTYPE html>
         <html lang='pt-BR'>
@@ -268,7 +322,7 @@ class NoticiaAdminController
                 .container { max-width: 900px; margin: 0 auto; background: white; padding: 28px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
                 .field { margin-bottom: 20px; }
                 label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.9rem; }
-                input[type='text'], select, textarea { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; font-family: inherit; }
+                input[type='text'], input[type='file'], select, textarea { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; font-family: inherit; }
                 textarea { resize: vertical; }
                 .editorial-box { background: #eff6ff; border: 1px solid #bfdbfe; padding: 16px; border-radius: 6px; }
                 .media-box { background: #faf5ff; border: 1px solid #e9d5ff; padding: 16px; border-radius: 6px; }
@@ -280,7 +334,7 @@ class NoticiaAdminController
         <body>
             <div class='container'>
                 <h2>Rever e Enriquecer Matéria</h2>
-                <form action='/admin/noticias/" . (int)$noticia['id'] . "/atualizar' method='POST'>
+                <form action='/admin/noticias/" . (int)$noticia['id'] . "/atualizar' method='POST' enctype='multipart/form-data'>
                     <div class='field'>
                         <label>Título da Notícia</label>
                         <input type='text' name='titulo' value='" . htmlspecialchars($noticia['titulo']) . "' required>
@@ -302,16 +356,23 @@ class NoticiaAdminController
                     </div>
 
                     <div class='field media-box'>
-                        <label style='color: #6b21a8;'>Mídias do Artigo (Imagens e Vídeos)</label>
-                        <div style='display: flex; gap: 15px; margin-top: 8px;'>
+                        <label style='color: #6b21a8; font-weight: bold;'>Mídias do Artigo (Imagens e Vídeos)</label>
+                        
+                        <div style='display: flex; gap: 15px; margin-top: 10px;'>
                             <div style='flex: 1;'>
-                                <label style='font-size: 0.8rem; color: #7e22ce;'>URL da Imagem de Destaque</label>
+                                <label style='font-size: 0.8rem; color: #7e22ce;'>Enviar Arquivo de Imagem Local (Do PC)</label>
+                                <input type='file' name='arquivo_imagem' accept='image/*'>
+                            </div>
+                            <div style='flex: 1;'>
+                                <label style='font-size: 0.8rem; color: #7e22ce;'>Ou URL da Imagem de Destaque</label>
                                 <input type='text' name='imagem_destaque' value='" . htmlspecialchars($noticia['imagem_destaque'] ?? '') . "' placeholder='https://exemplo.com/imagem.jpg'>
                             </div>
-                            <div style='flex: 1;'>
-                                <label style='font-size: 0.8rem; color: #7e22ce;'>Vídeo (YouTube ou MP4 direto)</label>
-                                <input type='text' name='video_url' value='" . htmlspecialchars($noticia['video_url'] ?? '') . "' placeholder='https://www.youtube.com/watch?v=... ou https://.../video.mp4'>
-                            </div>
+                        </div>
+                        {$previewImagem}
+
+                        <div style='margin-top: 14px;'>
+                            <label style='font-size: 0.8rem; color: #7e22ce;'>Vídeo (YouTube ou MP4 direto)</label>
+                            <input type='text' name='video_url' value='" . htmlspecialchars($noticia['video_url'] ?? '') . "' placeholder='https://www.youtube.com/watch?v=...'>
                         </div>
                     </div>
 
@@ -354,7 +415,7 @@ class NoticiaAdminController
                 .container { max-width: 900px; margin: 0 auto; background: white; padding: 28px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
                 .field { margin-bottom: 20px; }
                 label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.9rem; }
-                input[type='text'], select, textarea { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; font-family: inherit; }
+                input[type='text'], input[type='file'], select, textarea { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; font-family: inherit; }
                 textarea { resize: vertical; }
                 .editorial-box { background: #f0fdf4; border: 1px solid #bbf7d0; padding: 16px; border-radius: 6px; }
                 .media-box { background: #faf5ff; border: 1px solid #e9d5ff; padding: 16px; border-radius: 6px; }
@@ -366,7 +427,7 @@ class NoticiaAdminController
         <body>
             <div class='container'>
                 <h2>Redigir Nova Notícia Autoral</h2>
-                <form action='/admin/noticias/guardar' method='POST'>
+                <form action='/admin/noticias/guardar' method='POST' enctype='multipart/form-data'>
                     <div class='field'>
                         <label>Título da Notícia *</label>
                         <input type='text' name='titulo' placeholder='Ex: Nova atualização do ecossistema PHP foca em performance' required>
@@ -387,22 +448,28 @@ class NoticiaAdminController
                     </div>
 
                     <div class='field media-box'>
-                        <label style='color: #6b21a8;'>Mídias do Artigo (Imagens e Vídeos)</label>
-                        <div style='display: flex; gap: 15px; margin-top: 8px;'>
+                        <label style='color: #6b21a8; font-weight: bold;'>Mídias do Artigo (Imagens e Vídeos)</label>
+                        
+                        <div style='display: flex; gap: 15px; margin-top: 10px;'>
                             <div style='flex: 1;'>
-                                <label style='font-size: 0.8rem; color: #7e22ce;'>URL da Imagem de Destaque</label>
+                                <label style='font-size: 0.8rem; color: #7e22ce;'>Enviar Arquivo de Imagem Local (Do PC)</label>
+                                <input type='file' name='arquivo_imagem' accept='image/*'>
+                            </div>
+                            <div style='flex: 1;'>
+                                <label style='font-size: 0.8rem; color: #7e22ce;'>Ou URL da Imagem de Destaque</label>
                                 <input type='text' name='imagem_destaque' placeholder='https://exemplo.com/imagem.jpg'>
                             </div>
-                            <div style='flex: 1;'>
-                                <label style='font-size: 0.8rem; color: #7e22ce;'>Vídeo (YouTube ou MP4 direto)</label>
-                                <input type='text' name='video_url' placeholder='https://www.youtube.com/watch?v=... ou https://.../video.mp4'>
-                            </div>
+                        </div>
+
+                        <div style='margin-top: 14px;'>
+                            <label style='font-size: 0.8rem; color: #7e22ce;'>Vídeo (YouTube ou MP4 direto)</label>
+                            <input type='text' name='video_url' placeholder='https://www.youtube.com/watch?v=...'>
                         </div>
                     </div>
 
                     <div class='field'>
                         <label>Resumo Curto (SEO / Chamada de Capa) *</label>
-                        <textarea name='conteudo_resumo' rows='3' placeholder='Breve descrição do tema que chamará a atenção do leitor...' required></textarea>
+                        <textarea name='conteudo_resumo' rows='3' placeholder='Breve descrição do tema...' required></textarea>
                     </div>
 
                     <div class='field'>
@@ -412,7 +479,7 @@ class NoticiaAdminController
 
                     <div class='field editorial-box'>
                         <label style='color: #166534;'>Parecer do Editor / Considerações Finais</label>
-                        <textarea name='opiniao_editorial' rows='4' placeholder='Comentários analíticos próprios, impactos práticos e visão autoral...'></textarea>
+                        <textarea name='opiniao_editorial' rows='4' placeholder='Comentários analíticos próprios...'></textarea>
                     </div>
 
                     <div style='margin-top: 24px;'>

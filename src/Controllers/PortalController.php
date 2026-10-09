@@ -1,4 +1,5 @@
 <?php
+
 declare(strict_types=1);
 
 namespace App\Controllers;
@@ -108,11 +109,10 @@ class PortalController
         }
     }
 
-    // Gerador de Slot de Publicidade Responsivo (AdSense Compliance)
     private function renderizarBlocoPublicidade(string $tipo = 'horizontal'): string
     {
-        $estiloDimensoes = $tipo === 'horizontal' 
-            ? 'min-height: 90px; width: 100%; max-width: 728px;' 
+        $estiloDimensoes = $tipo === 'horizontal'
+            ? 'min-height: 90px; width: 100%; max-width: 728px;'
             : 'min-height: 250px; width: 100%; max-width: 300px;';
 
         return "
@@ -159,8 +159,15 @@ class PortalController
         $cards = '';
         foreach ($noticias as $item) {
             $dataPublicacao = date('d/m/Y H:i', strtotime($item['criado_em']));
+
+            $tagImagemCapa = '';
+            if (!empty($item['imagem_destaque'])) {
+                $tagImagemCapa = "<img src='" . htmlspecialchars($item['imagem_destaque']) . "' alt='" . htmlspecialchars($item['titulo']) . "' style='width: 100%; height: 180px; object-fit: cover;'>";
+            }
+
             $cards .= "
             <article style='background: white; border-radius: 8px; border: 1px solid #e5e7eb; overflow: hidden; display: flex; flex-direction: column;'>
+                {$tagImagemCapa}
                 <div style='padding: 20px; flex-grow: 1; display: flex; flex-direction: column;'>
                     <span style='color: #2563eb; font-weight: 700; font-size: 0.8rem; text-transform: uppercase; margin-bottom: 8px;'>" . htmlspecialchars($item['categoria']) . "</span>
                     <h2 style='font-size: 1.25rem; line-height: 1.4; margin: 0 0 10px 0;'>
@@ -204,7 +211,6 @@ class PortalController
                 </div>
             </header>
 
-            <!-- Slot de Anúncio Superior na Capa -->
             <div style='max-width: 1100px; width: 100%; margin: 20px auto 0 auto; padding: 0 20px; box-sizing: border-box;'>
                 {$adTopo}
             </div>
@@ -220,7 +226,12 @@ class PortalController
     private function renderizarArtigo(array $noticia, array $linksAfiliados = []): string
     {
         $dataPublicacao = date('d/m/Y \à\s H:i', strtotime($noticia['criado_em']));
-        
+
+        $tagImagemDestaque = '';
+        if (!empty($noticia['imagem_destaque'])) {
+            $tagImagemDestaque = "<div style='margin-bottom: 2rem;'><img src='" . htmlspecialchars($noticia['imagem_destaque']) . "' alt='" . htmlspecialchars($noticia['titulo']) . "' style='width: 100%; max-height: 420px; object-fit: cover; border-radius: 8px;'></div>";
+        }
+
         $playerVideo = $this->renderizarPlayerVideo($noticia['video_url'] ?? null);
         $adArtigo = $this->renderizarBlocoPublicidade('horizontal');
 
@@ -291,17 +302,18 @@ class PortalController
                 <h1 style='font-size: 2.1rem; line-height: 1.3; margin: 12px 0 16px 0;'>" . htmlspecialchars($noticia['titulo']) . "</h1>
                 <p style='color: #6b7280; font-size: 0.9rem; margin-bottom: 24px;'>Publicado em {$dataPublicacao} • " . (int)$noticia['cliques_total'] . " leituras</p>
                 
-                <p style='font-size: 1.15rem; color: #4b5563; font-style: italic; border-left: 3px solid #9ca3af; padding-left: 14px; margin-bottom: 30px;'>" . htmlspecialchars($noticia['conteudo_resumo']) . "</p>
+                <p style='font-size: 1.15rem; color: #4b5563; font-style: italic; border-left: 3px solid #9ca3af; padding-left: 14px; margin-bottom: 30px;'>
+                    " . htmlspecialchars($noticia['conteudo_resumo']) . "
+                </p>
 
+                {$tagImagemDestaque}
                 {$playerVideo}
 
                 <div class='article-body'>
                     " . nl2br(htmlspecialchars($noticia['conteudo_completo'])) . "
                 </div>
 
-                <!-- Slot de Anúncio In-Article -->
                 {$adArtigo}
-
                 {$seccaoEditorial}
                 {$seccaoAfiliados}
                 {$seccaoFonte}
