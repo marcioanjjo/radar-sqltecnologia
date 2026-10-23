@@ -68,8 +68,23 @@ class PortalController
     public function termos(Request $request, Response $response): Response
     {
         $html = $this->renderizarPaginaInstitucional(
-            'Termos de Uso',
-            'O conteúdo publicado no Radar Notícias possui caráter exclusivamente informativo e analítico. Todo o material autoral é protegido por direitos autorais sob a chancela da SQL Tecnologia.'
+            '<h2>Termos de Uso</h2>',
+            '<p><strong>Última atualização: Outubro de 2026</strong></p>
+
+            <h3>1. Aceitação dos Termos</h3>
+            <p>Ao aceder e navegar no <strong>Radar Notícias</strong>, o utilizador concorda expressamente em cumprir e respeitar os presentes Termos de Uso, bem como todas as leis e regulamentos aplicáveis.</p>
+
+            <h3>2. Propriedade Intelectual e Curadoria Editorial</h3>
+            <p>Todo o conteúdo textual, análises editoriais, sínteses técnicas e layouts desenvolvidos pela equipa da <strong>SQL Tecnologia</strong> são protegidos pelas leis de propriedade intelectual e direitos de autor. É expressamente proibida a reprodução integral, redistribuição ou exploração comercial não autorizada do material sem a devida citação e atribuição de link de referência ao Radar Notícias.</p>
+
+            <h3>3. Isenção de Responsabilidade sobre Conteúdo e Links Externos</h3>
+            <p>O conteúdo publicado no Radar Notícias possui caráter estritamente analítico e informativo sobre inovação, modelos de inteligência artificial e ecossistemas de software. O portal pode conter hiperligações para websites de terceiros, ferramentas ou fontes oficiais. Não exercemos qualquer controlo sobre as práticas, políticas de privacidade ou conteúdos desses serviços externos, declinando qualquer responsabilidade por perdas ou danos decorrentes da sua utilização.</p>
+
+            <h3>4. Conduta do Utilizador</h3>
+            <p>O utilizador compromete-se a utilizar a plataforma de forma lícita, não praticando atos que possam comprometer a segurança, disponibilidade ou integridade dos servidores, bases de dados e redes associadas ao serviço.</p>
+
+            <h3>5. Modificações dos Termos</h3>
+            <p>A SQL Tecnologia reserva-se o direito de rever e atualizar estes termos a qualquer momento, sem aviso prévio, entrando as alterações em vigor imediatamente após a sua publicação nesta página.</p>'
         );
         $response->getBody()->write($html);
         return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
@@ -78,8 +93,23 @@ class PortalController
     public function privacidade(Request $request, Response $response): Response
     {
         $html = $this->renderizarPaginaInstitucional(
-            'Política de Privacidade',
-            'O Radar Notícias respeita a privacidade de seus utilizadores. Utilizamos identificadores e cookies técnicos para análise de métricas anonimizadas e veiculação de anúncios através do Google AdSense. Em conformidade com a LGPD, nenhum dado sensível ou identificável é armazenado sem consentimento.'
+            '<h2>Política de Privacidade</h2>',
+            '<p><strong>Última atualização: Outubro de 2026</strong></p>
+
+            <h3>1. Aceitação dos Termos</h3>
+            <p>Ao aceder e navegar no <strong>Radar Notícias</strong>, o utilizador concorda expressamente em cumprir e respeitar os presentes Termos de Uso, bem como todas as leis e regulamentos aplicáveis.</p>
+
+            <h3>2. Propriedade Intelectual e Curadoria Editorial</h3>
+            <p>Todo o conteúdo textual, análises editoriais, sínteses técnicas e layouts desenvolvidos pela equipa da <strong>SQL Tecnologia</strong> são protegidos pelas leis de propriedade intelectual e direitos de autor. É expressamente proibida a reprodução integral, redistribuição ou exploração comercial não autorizada do material sem a devida citação e atribuição de link de referência ao Radar Notícias.</p>
+
+            <h3>3. Isenção de Responsabilidade sobre Conteúdo e Links Externos</h3>
+            <p>O conteúdo publicado no Radar Notícias possui caráter estritamente analítico e informativo sobre inovação, modelos de inteligência artificial e ecossistemas de software. O portal pode conter hiperligações para websites de terceiros, ferramentas ou fontes oficiais. Não exercemos qualquer controlo sobre as práticas, políticas de privacidade ou conteúdos desses serviços externos, declinando qualquer responsabilidade por perdas ou danos decorrentes da sua utilização.</p>
+
+            <h3>4. Conduta do Utilizador</h3>
+            <p>O utilizador compromete-se a utilizar a plataforma de forma lícita, não praticando atos que possam comprometer a segurança, disponibilidade ou integridade dos servidores, bases de dados e redes associadas ao serviço.</p>
+
+            <h3>5. Modificações dos Termos</h3>
+            <p>A SQL Tecnologia reserva-se o direito de rever e atualizar estes termos a qualquer momento, sem aviso prévio, entrando as alterações em vigor imediatamente após a sua publicação nesta página.</p>'
         );
         $response->getBody()->write($html);
         return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
