@@ -68,7 +68,7 @@ class PortalController
     public function termos(Request $request, Response $response): Response
     {
         $html = $this->renderizarPaginaInstitucional(
-            '<h2>Termos de Uso</h2>',
+            'Termos de Uso',
             '<p><strong>Última atualização: Outubro de 2026</strong></p>
 
             <h3>1. Aceitação dos Termos</h3>
@@ -93,7 +93,7 @@ class PortalController
     public function privacidade(Request $request, Response $response): Response
     {
         $html = $this->renderizarPaginaInstitucional(
-            '<h2>Política de Privacidade</h2>',
+            'Política de Privacidade',
             '<p><strong>Última atualização: Outubro de 2026</strong></p>
 
             <h3>1. Aceitação dos Termos</h3>
