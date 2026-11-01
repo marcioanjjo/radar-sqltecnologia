@@ -56,7 +56,7 @@ class NoticiaAdminController
         $opiniaoEditorial = trim($data['opiniao_editorial'] ?? '');
         $imagemDestaque   = trim($data['imagem_destaque'] ?? '');
         $videoUrl         = trim($data['video_url'] ?? '');
-        $status           = in_array($data['status'] ?? '', ['rascunho', 'publicado'], true)
+        $status           = in_array($data['status'] ?? '', ['rascunho', 'publicado', 'arquivado'], true)
             ? $data['status']
             : 'rascunho';
 
@@ -65,7 +65,6 @@ class NoticiaAdminController
             return $response->withStatus(400);
         }
 
-        // Processa upload de arquivo local caso tenha sido enviado
         if (isset($uploadedFiles['arquivo_imagem'])) {
             $caminhoUpload = $this->processarUploadImagem($uploadedFiles['arquivo_imagem']);
             if ($caminhoUpload !== null) {
@@ -141,7 +140,6 @@ class NoticiaAdminController
             ? $data['status']
             : 'rascunho';
 
-        // Processa upload de imagem caso o usuário tenha subido um novo arquivo
         if (isset($uploadedFiles['arquivo_imagem'])) {
             $caminhoUpload = $this->processarUploadImagem($uploadedFiles['arquivo_imagem']);
             if ($caminhoUpload !== null) {
@@ -191,7 +189,14 @@ class NoticiaAdminController
             return null;
         }
 
-        $diretorioUpload = __DIR__ . '/../../public/uploads';
+        $diretorioPublicoHostgator = '/home2/hg49e123/radar.sqltecnologia.inf.br/uploads';
+
+        if (is_dir('/home2/hg49e123/radar.sqltecnologia.inf.br')) {
+            $diretorioUpload = $diretorioPublicoHostgator;
+        } else {
+            $diretorioUpload = __DIR__ . '/../../public/uploads';
+        }
+
         if (!is_dir($diretorioUpload)) {
             mkdir($diretorioUpload, 0755, true);
         }
@@ -218,7 +223,13 @@ class NoticiaAdminController
     {
         $linhas = '';
         foreach ($noticias as $item) {
-            $corStatus = $item['status'] === 'publicado' ? '#16a34a' : '#d97706';
+            $corStatus = '#d97706';
+            if ($item['status'] === 'publicado') {
+                $corStatus = '#16a34a';
+            } elseif ($item['status'] === 'arquivado') {
+                $corStatus = '#6b7280';
+            }
+
             $linhas .= "
             <tr style='border-bottom: 1px solid #e5e7eb;'>
                 <td style='padding: 12px;'>" . (int)$item['id'] . "</td>
@@ -234,7 +245,7 @@ class NoticiaAdminController
         }
 
         if (empty($linhas)) {
-            $linhas = "<tr><td colspan='7' style='padding: 24px; text-align: center; color: #6b7280;'>Nenhuma notícia registada neste estado.</td></tr>";
+            $linhas = "<tr><td colspan='7' style='padding: 24px; text-align: center; color: #6b7280;'>Nenhuma notícia registrada neste estado.</td></tr>";
         }
 
         return "
@@ -258,7 +269,7 @@ class NoticiaAdminController
                 <div class='header'>
                     <div>
                         <h2 style='margin: 0;'>Redação Editorial</h2>
-                        <small style='color: #6b7280;'>Gestão de Conteúdo e Controlo de Qualidade</small>
+                        <small style='color: #6b7280;'>Gestão de Conteúdo e Controle de Qualidade</small>
                     </div>
                     <div>
                         <a href='/admin/dashboard' style='margin-right: 15px; color: #4b5563; text-decoration: none;'>Dashboard</a>
@@ -269,8 +280,9 @@ class NoticiaAdminController
                 <div style='display: flex; justify-content: space-between; align-items: center; margin-bottom: 20px;'>
                     <div class='nav-links'>
                         <a href='/admin/noticias' class='" . ($filtro === 'todos' ? 'active' : '') . "'>Todas</a>
-                        <a href='/admin/noticias?status=rascunho' class='" . ($filtro === 'rascunho' ? 'active' : '') . "'>Rascunhos (Pendentes)</a>
+                        <a href='/admin/noticias?status=rascunho' class='" . ($filtro === 'rascunho' ? 'active' : '') . "'>Rascunhos</a>
                         <a href='/admin/noticias?status=publicado' class='" . ($filtro === 'publicado' ? 'active' : '') . "'>Publicadas</a>
+                        <a href='/admin/noticias?status=arquivado' class='" . ($filtro === 'arquivado' ? 'active' : '') . "'>Arquivadas</a>
                     </div>
                     <a href='/admin/noticias/nova' style='background: #16a34a; color: white; padding: 8px 16px; border-radius: 6px; text-decoration: none; font-weight: bold; font-size: 0.9rem;'>+ Nova Notícia</a>
                 </div>
@@ -317,9 +329,10 @@ class NoticiaAdminController
         <head>
             <meta charset='UTF-8'>
             <title>Editar Matéria - Radar Notícias</title>
+            <script src='https://cdnjs.cloudflare.com/ajax/libs/tinymce/6.8.2/tinymce.min.js' referrerpolicy='origin'></script>
             <style>
                 body { font-family: system-ui, -apple-system, sans-serif; background: #f9fafb; margin: 0; padding: 24px; color: #111827; }
-                .container { max-width: 900px; margin: 0 auto; background: white; padding: 28px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+                .container { max-width: 960px; margin: 0 auto; background: white; padding: 28px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
                 .field { margin-bottom: 20px; }
                 label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.9rem; }
                 input[type='text'], input[type='file'], select, textarea { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; font-family: inherit; }
@@ -334,7 +347,7 @@ class NoticiaAdminController
         <body>
             <div class='container'>
                 <h2>Rever e Enriquecer Matéria</h2>
-                <form action='/admin/noticias/" . (int)$noticia['id'] . "/atualizar' method='POST' enctype='multipart/form-data'>
+                <form id='formNoticia' action='/admin/noticias/" . (int)$noticia['id'] . "/atualizar' method='POST' enctype='multipart/form-data'>
                     <div class='field'>
                         <label>Título da Notícia</label>
                         <input type='text' name='titulo' value='" . htmlspecialchars($noticia['titulo']) . "' required>
@@ -382,14 +395,14 @@ class NoticiaAdminController
                     </div>
 
                     <div class='field'>
-                        <label>Conteúdo Principal (Corpo do Artigo)</label>
-                        <textarea name='conteudo_completo' rows='8' required>" . htmlspecialchars($noticia['conteudo_completo']) . "</textarea>
+                        <label>Conteúdo Principal (Editor com suporte a Tabelas, Títulos e Listas)</label>
+                        <textarea id='editor_conteudo' name='conteudo_completo' rows='12'>" . htmlspecialchars($noticia['conteudo_completo']) . "</textarea>
                     </div>
 
                     <div class='field editorial-box'>
-                        <label style='color: #1e40af;'>Análise Editorial Própria (AdSense Compliance)</label>
-                        <small style='display: block; color: #3b82f6; margin-bottom: 8px;'>Adicione a sua análise técnica, impacto de mercado ou conclusão autoral.</small>
-                        <textarea name='opiniao_editorial' rows='4' placeholder='Insira a sua visão técnica sobre esta notícia...'>" . htmlspecialchars($noticia['opiniao_editorial'] ?? '') . "</textarea>
+                        <label style='color: #1e40af;'>Análise Editorial Própria (AdSense Compliance - Editor com Tabelas e Formatação)</label>
+                        <small style='display: block; color: #3b82f6; margin-bottom: 8px;'>Adicione a sua análise técnica, tabelas comparativas de dados ou considerações autorais.</small>
+                        <textarea id='editor_editorial' name='opiniao_editorial' rows='8' placeholder='Insira a sua visão técnica sobre esta notícia...'>" . htmlspecialchars($noticia['opiniao_editorial'] ?? '') . "</textarea>
                     </div>
 
                     <div style='margin-top: 24px;'>
@@ -398,6 +411,26 @@ class NoticiaAdminController
                     </div>
                 </form>
             </div>
+
+            <script>
+                tinymce.init({
+                    selector: '#editor_conteudo, #editor_editorial',
+                    height: 420,
+                    menubar: 'edit insert view format table tools',
+                    plugins: 'table lists link code wordcount',
+                    toolbar: 'undo redo | blocks | bold italic underline | alignleft aligncenter alignright | bullist numlist | table | code',
+                    content_style: 'body { font-family: system-ui, -apple-system, sans-serif; font-size: 15px; line-height: 1.6; } table { width: 100%; border-collapse: collapse; margin: 15px 0; } th, td { border: 1px solid #cbd5e1; padding: 8px 12px; } th { background-color: #f1f5f9; }',
+                    setup: function (editor) {
+                        editor.on('change', function () {
+                            editor.save();
+                        });
+                    }
+                });
+
+                document.getElementById('formNoticia').addEventListener('submit', function() {
+                    tinymce.triggerSave();
+                });
+            </script>
         </body>
         </html>";
     }
@@ -410,9 +443,10 @@ class NoticiaAdminController
         <head>
             <meta charset='UTF-8'>
             <title>Nova Notícia - Radar Notícias</title>
+            <script src='https://cdnjs.cloudflare.com/ajax/libs/tinymce/6.8.2/tinymce.min.js' referrerpolicy='origin'></script>
             <style>
                 body { font-family: system-ui, -apple-system, sans-serif; background: #f9fafb; margin: 0; padding: 24px; color: #111827; }
-                .container { max-width: 900px; margin: 0 auto; background: white; padding: 28px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
+                .container { max-width: 960px; margin: 0 auto; background: white; padding: 28px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); }
                 .field { margin-bottom: 20px; }
                 label { display: block; font-weight: 600; margin-bottom: 6px; font-size: 0.9rem; }
                 input[type='text'], input[type='file'], select, textarea { width: 100%; padding: 10px; border: 1px solid #d1d5db; border-radius: 6px; box-sizing: border-box; font-family: inherit; }
@@ -427,16 +461,16 @@ class NoticiaAdminController
         <body>
             <div class='container'>
                 <h2>Redigir Nova Notícia Autoral</h2>
-                <form action='/admin/noticias/guardar' method='POST' enctype='multipart/form-data'>
+                <form id='formNovaNoticia' action='/admin/noticias/guardar' method='POST' enctype='multipart/form-data'>
                     <div class='field'>
                         <label>Título da Notícia *</label>
-                        <input type='text' name='titulo' placeholder='Ex: Nova atualização do ecossistema PHP foca em performance' required>
+                        <input type='text' name='titulo' placeholder='Ex: Nova atualização do ecossistema foca em performance' required>
                     </div>
 
                     <div style='display: flex; gap: 20px;'>
                         <div class='field' style='flex: 1;'>
                             <label>Categoria *</label>
-                            <input type='text' name='categoria' placeholder='Ex: Tecnologia, Desenvolvimento, IA' required>
+                            <input type='text' name='categoria' placeholder='Ex: Inteligência Artificial, Desenvolvimento' required>
                         </div>
                         <div class='field' style='flex: 1;'>
                             <label>Estado de Publicação</label>
@@ -474,12 +508,12 @@ class NoticiaAdminController
 
                     <div class='field'>
                         <label>Conteúdo Completo da Matéria *</label>
-                        <textarea name='conteudo_completo' rows='10' placeholder='Desenvolva o corpo principal do artigo aqui...' required></textarea>
+                        <textarea id='editor_conteudo' name='conteudo_completo' rows='12' placeholder='Desenvolva o corpo principal do artigo aqui...'></textarea>
                     </div>
 
                     <div class='field editorial-box'>
-                        <label style='color: #166534;'>Parecer do Editor / Considerações Finais</label>
-                        <textarea name='opiniao_editorial' rows='4' placeholder='Comentários analíticos próprios...'></textarea>
+                        <label style='color: #166534;'>Parecer do Editor / Considerações Finais (Editor com Tabelas e Formatação)</label>
+                        <textarea id='editor_editorial' name='opiniao_editorial' rows='8' placeholder='Comentários analíticos próprios, tabelas e considerações...'></textarea>
                     </div>
 
                     <div style='margin-top: 24px;'>
@@ -488,6 +522,26 @@ class NoticiaAdminController
                     </div>
                 </form>
             </div>
+
+            <script>
+                tinymce.init({
+                    selector: '#editor_conteudo, #editor_editorial',
+                    height: 420,
+                    menubar: 'edit insert view format table tools',
+                    plugins: 'table lists link code wordcount',
+                    toolbar: 'undo redo | blocks | bold italic underline | alignleft aligncenter alignright | bullist numlist | table | code',
+                    content_style: 'body { font-family: system-ui, -apple-system, sans-serif; font-size: 15px; line-height: 1.6; } table { width: 100%; border-collapse: collapse; margin: 15px 0; } th, td { border: 1px solid #cbd5e1; padding: 8px 12px; } th { background-color: #f1f5f9; }',
+                    setup: function (editor) {
+                        editor.on('change', function () {
+                            editor.save();
+                        });
+                    }
+                });
+
+                document.getElementById('formNovaNoticia').addEventListener('submit', function() {
+                    tinymce.triggerSave();
+                });
+            </script>
         </body>
         </html>";
     }

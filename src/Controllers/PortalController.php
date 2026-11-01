@@ -15,17 +15,16 @@ class PortalController
     {
         $pdo = Database::getConnection();
 
-        $stmt = $pdo->prepare("
-            SELECT id, titulo, slug, categoria, conteudo_resumo, imagem_destaque, criado_em, cliques_total 
-            FROM noticias 
-            WHERE status = 'publicado' 
-            ORDER BY criado_em DESC 
-            LIMIT 20
-        ");
-        $stmt->execute();
+        $sql = "SELECT id, titulo, slug, categoria, conteudo_resumo, imagem_destaque, video_url, cliques_total, criado_em 
+                FROM noticias 
+                WHERE status = 'publicado' 
+                ORDER BY criado_em DESC 
+                LIMIT 15";
+
+        $stmt = $pdo->query($sql);
         $noticias = $stmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $html = $this->renderizarCapa($noticias);
+        $html = $this->renderizarHome($noticias);
         $response->getBody()->write($html);
         return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
     }
@@ -35,177 +34,105 @@ class PortalController
         $slug = $args['slug'] ?? '';
         $pdo = Database::getConnection();
 
-        $stmt = $pdo->prepare("
-            SELECT * 
-            FROM noticias 
-            WHERE slug = :slug AND status = 'publicado' 
-            LIMIT 1
-        ");
+        $stmt = $pdo->prepare("SELECT * FROM noticias WHERE slug = :slug AND status = 'publicado' LIMIT 1");
         $stmt->execute([':slug' => $slug]);
         $noticia = $stmt->fetch(PDO::FETCH_ASSOC);
 
         if (!$noticia) {
             $response->getBody()->write("<h1>404 - Notícia não encontrada</h1>");
-            return $response->withStatus(404)->withHeader('Content-Type', 'text/html; charset=UTF-8');
+            return $response->withStatus(404);
         }
 
-        // Procura divulgações ou anúncios especificamente vinculados a esta matéria
-        $stmtLinks = $pdo->prepare("
-            SELECT id, titulo 
-            FROM links_afiliados 
-            WHERE noticia_id = :noticia_id AND ativo = 1
-        ");
-        $stmtLinks->execute([':noticia_id' => $noticia['id']]);
-        $linksAfiliados = $stmtLinks->fetchAll(PDO::FETCH_ASSOC);
+        // Incrementa cliques/visualizações
+        $updateStmt = $pdo->prepare("UPDATE noticias SET cliques_total = cliques_total + 1 WHERE id = :id");
+        $updateStmt->execute([':id' => $noticia['id']]);
 
-        $this->registarLeitura($pdo, (int)$noticia['id'], $request);
+        // Consulta de afiliados vinculados
+        $afiliadosStmt = $pdo->prepare("SELECT * FROM links_afiliados WHERE noticia_id = :id AND status = 'ativo' LIMIT 4");
+        $afiliadosStmt->execute([':id' => $noticia['id']]);
+        $afiliados = $afiliadosStmt->fetchAll(PDO::FETCH_ASSOC);
 
-        $html = $this->renderizarArtigo($noticia, $linksAfiliados);
+        $html = $this->renderizarArtigo($noticia, $afiliados);
         $response->getBody()->write($html);
         return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
     }
 
     public function termos(Request $request, Response $response): Response
     {
-        $html = $this->renderizarPaginaInstitucional(
-            'Termos de Uso',
-            '<p><strong>Última atualização: Outubro de 2026</strong></p>
+        $conteudo = "
+        <p><strong>Última atualização: Outubro de 2026</strong></p>
 
-            <h3>1. Aceitação dos Termos</h3>
-            <p>Ao aceder e navegar no <strong>Radar Notícias</strong>, o utilizador concorda expressamente em cumprir e respeitar os presentes Termos de Uso, bem como todas as leis e regulamentos aplicáveis.</p>
+        <h3>1. Aceitação dos Termos</h3>
+        <p>Ao acessar e navegar no <strong>Radar Notícias</strong>, o usuário concorda expressamente em cumprir e respeitar os presentes Termos de Uso, bem como todas as leis e regulamentos aplicáveis.</p>
 
-            <h3>2. Propriedade Intelectual e Curadoria Editorial</h3>
-            <p>Todo o conteúdo textual, análises editoriais, sínteses técnicas e layouts desenvolvidos pela equipa da <strong>SQL Tecnologia</strong> são protegidos pelas leis de propriedade intelectual e direitos de autor. É expressamente proibida a reprodução integral, redistribuição ou exploração comercial não autorizada do material sem a devida citação e atribuição de link de referência ao Radar Notícias.</p>
+        <h3>2. Propriedade Intelectual e Curadoria Editorial</h3>
+        <p>Todo o conteúdo textual, análises editoriais, sínteses técnicas e layouts desenvolvidos pela equipe da <strong>SQL Tecnologia</strong> são protegidos pelas leis de propriedade intelectual e direitos autorais. É proibida a reprodução integral, redistribuição ou exploração comercial não autorizada do material sem a devida citação e atribuição de link de referência ao Radar Notícias.</p>
 
-            <h3>3. Isenção de Responsabilidade sobre Conteúdo e Links Externos</h3>
-            <p>O conteúdo publicado no Radar Notícias possui caráter estritamente analítico e informativo sobre inovação, modelos de inteligência artificial e ecossistemas de software. O portal pode conter hiperligações para websites de terceiros, ferramentas ou fontes oficiais. Não exercemos qualquer controlo sobre as práticas, políticas de privacidade ou conteúdos desses serviços externos, declinando qualquer responsabilidade por perdas ou danos decorrentes da sua utilização.</p>
+        <h3>3. Isenção de Responsabilidade sobre Conteúdo e Links Externos</h3>
+        <p>O conteúdo publicado no Radar Notícias possui caráter estritamente analítico e informativo sobre inovação, modelos de inteligência artificial e ecossistemas de software. O portal pode conter hiperligações para sites de terceiros, ferramentas ou fontes oficiais. Não exercemos qualquer controle sobre as práticas, políticas de privacidade ou conteúdos desses serviços externos, declinando qualquer responsabilidade por perdas ou danos decorrentes da sua utilização.</p>
 
-            <h3>4. Conduta do Utilizador</h3>
-            <p>O utilizador compromete-se a utilizar a plataforma de forma lícita, não praticando atos que possam comprometer a segurança, disponibilidade ou integridade dos servidores, bases de dados e redes associadas ao serviço.</p>
+        <h3>4. Conduta do Usuário</h3>
+        <p>O usuário compromete-se a utilizar a plataforma de forma lícita, não praticando atos que possam comprometer a segurança, disponibilidade ou integridade dos servidores, bancos de dados e redes associadas ao serviço.</p>
 
-            <h3>5. Modificações dos Termos</h3>
-            <p>A SQL Tecnologia reserva-se o direito de rever e atualizar estes termos a qualquer momento, sem aviso prévio, entrando as alterações em vigor imediatamente após a sua publicação nesta página.</p>'
-        );
+        <h3>5. Modificações dos Termos</h3>
+        <p>A SQL Tecnologia reserva-se o direito de rever e atualizar estes termos a qualquer momento, sem aviso prévio, entrando as alterações em vigor imediatamente após a sua publicação nesta página.</p>";
+
+        $html = $this->renderizarPaginaInstitucional('Termos de Uso', $conteudo);
         $response->getBody()->write($html);
         return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
     }
 
     public function privacidade(Request $request, Response $response): Response
     {
-        $html = $this->renderizarPaginaInstitucional(
-            'Política de Privacidade',
-            '<p><strong>Última atualização: Outubro de 2026</strong></p>
+        $conteudo = "
+        <p><strong>Última atualização: Outubro de 2026</strong></p>
+        <p>A sua privacidade é de extrema importância para nós. A presente Política de Privacidade descreve como o <strong>Radar Notícias</strong> (operado pela SQL Tecnologia) recolhe, utiliza, armazena e protege os dados gerados pela sua navegação no domínio e subdomínios associados.</p>
 
-            <h3>1. Aceitação dos Termos</h3>
-            <p>Ao aceder e navegar no <strong>Radar Notícias</strong>, o utilizador concorda expressamente em cumprir e respeitar os presentes Termos de Uso, bem como todas as leis e regulamentos aplicáveis.</p>
+        <h3>1. Recolha de Informações e Métricas de Navegação</h3>
+        <p>O Radar Notícias não recolhe informações de identificação pessoal (PII) dos seus visitantes, salvo quando fornecidas de forma voluntária. Recolhemos dados técnicos através de arquivos de registro (endereço IP anonimizado, tipo de navegador e tempo de permanência) estritamente para métricas estatísticas e estabilidade do serviço.</p>
 
-            <h3>2. Propriedade Intelectual e Curadoria Editorial</h3>
-            <p>Todo o conteúdo textual, análises editoriais, sínteses técnicas e layouts desenvolvidos pela equipa da <strong>SQL Tecnologia</strong> são protegidos pelas leis de propriedade intelectual e direitos de autor. É expressamente proibida a reprodução integral, redistribuição ou exploração comercial não autorizada do material sem a devida citação e atribuição de link de referência ao Radar Notícias.</p>
+        <h3>2. Cookies e Web Beacons</h3>
+        <p>Utilizamos cookies técnicos essenciais para permitir o funcionamento adequado da plataforma. Adicionalmente, fornecedores terceiros, incluindo o Google, utilizam cookies para veicular anúncios com base nas visitas anteriores dos usuários ao nosso website ou a outros websites na Internet.</p>
 
-            <h3>3. Isenção de Responsabilidade sobre Conteúdo e Links Externos</h3>
-            <p>O conteúdo publicado no Radar Notícias possui caráter estritamente analítico e informativo sobre inovação, modelos de inteligência artificial e ecossistemas de software. O portal pode conter hiperligações para websites de terceiros, ferramentas ou fontes oficiais. Não exercemos qualquer controlo sobre as práticas, políticas de privacidade ou conteúdos desses serviços externos, declinando qualquer responsabilidade por perdas ou danos decorrentes da sua utilização.</p>
+        <h3>3. Fornecedores de Publicidade (Google AdSense)</h3>
+        <p>O Google é um fornecedor terceiro no nosso portal. A utilização de cookies de publicidade permite ao Google e aos seus parceiros apresentar anúncios aos nossos usuários com base nas suas visitas a este e a outros websites:</p>
+        <ul>
+            <li>Os usuários podem desativar a publicidade personalizada acessando as <a href='https://www.google.com/settings/ads' target='_blank' rel='noopener noreferrer'>Configurações de Anúncios do Google</a>.</li>
+            <li>Em alternativa, pode desativar a utilização de cookies de terceiros para publicidade personalizada acessando o portal <a href='https://www.aboutads.info/choices/' target='_blank' rel='noopener noreferrer'>aboutads.info</a>.</li>
+        </ul>
 
-            <h3>4. Conduta do Utilizador</h3>
-            <p>O utilizador compromete-se a utilizar a plataforma de forma lícita, não praticando atos que possam comprometer a segurança, disponibilidade ou integridade dos servidores, bases de dados e redes associadas ao serviço.</p>
+        <h3>4. Conformidade com a LGPD e Direitos do Titular</h3>
+        <p>O tratamento de quaisquer métricas ou dados enquadra-se nas diretrizes da Lei Geral de Proteção de Dados (Lei nº 13.709/2018 - LGPD). Nenhum dado sensível é processado ou compartilhado comercialmente com terceiros não autorizados.</p>
 
-            <h3>5. Modificações dos Termos</h3>
-            <p>A SQL Tecnologia reserva-se o direito de rever e atualizar estes termos a qualquer momento, sem aviso prévio, entrando as alterações em vigor imediatamente após a sua publicação nesta página.</p>'
-        );
+        <h3>5. Contato e Dúvidas</h3>
+        <p>Para esclarecimentos sobre a nossa política de privacidade ou sobre o tratamento de informações, entre em contato através do e-mail oficial: <strong>contato@sqltecnologia.inf.br</strong>.</p>";
+
+        $html = $this->renderizarPaginaInstitucional('Política de Privacidade', $conteudo);
         $response->getBody()->write($html);
         return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
     }
 
-    private function registarLeitura(PDO $pdo, int $noticiaId, Request $request): void
-    {
-        try {
-            $stmtUpdate = $pdo->prepare("UPDATE noticias SET cliques_total = cliques_total + 1 WHERE id = :id");
-            $stmtUpdate->execute([':id' => $noticiaId]);
-
-            $serverParams = $request->getServerParams();
-            $ip = $serverParams['REMOTE_ADDR'] ?? '0.0.0.0';
-            $ipHash = hash('sha256', $ip);
-            $userAgent = substr($serverParams['HTTP_USER_AGENT'] ?? '', 0, 255);
-
-            $stmtLog = $pdo->prepare("
-                INSERT INTO logs_cliques (noticia_id, tipo_origem, ip_hash, user_agent, clicado_em) 
-                VALUES (:id, 'noticia_leitura', :ip_hash, :user_agent, NOW())
-            ");
-            $stmtLog->execute([
-                ':id'         => $noticiaId,
-                ':ip_hash'    => $ipHash,
-                ':user_agent' => $userAgent
-            ]);
-        } catch (\Throwable $e) {
-        }
-    }
-
-    private function renderizarBlocoPublicidade(string $tipo = 'horizontal'): string
-    {
-        $estiloDimensoes = $tipo === 'horizontal'
-            ? 'min-height: 90px; width: 100%; max-width: 728px;'
-            : 'min-height: 250px; width: 100%; max-width: 300px;';
-
-        return "
-        <div style='margin: 2rem auto; text-align: center;'>
-            <span style='display: block; font-size: 0.7rem; color: #9ca3af; text-transform: uppercase; letter-spacing: 0.05em; margin-bottom: 4px;'>Publicidade</span>
-            <div style='background: #f1f5f9; border: 1px dashed #cbd5e1; border-radius: 6px; margin: 0 auto; display: flex; align-items: center; justify-content: center; color: #64748b; font-size: 0.85rem; font-weight: 500; {$estiloDimensoes}'>
-                <!-- Espaço Reservado para o Google AdSense / Bloco {$tipo} -->
-                Espaço Publicitário (AdSense / Banner Parceiro)
-            </div>
-        </div>";
-    }
-
-    private function renderizarPlayerVideo(?string $videoUrl): string
-    {
-        if (empty($videoUrl)) {
-            return '';
-        }
-
-        $youtubePattern = '%^(?:https?://)?(?:www\.)?(?:youtu\.be/|youtube\.com/(?:watch\?v=|embed/|v/|shorts/))([\w-]{11})%x';
-        if (preg_match($youtubePattern, $videoUrl, $matches)) {
-            $videoId = $matches[1];
-            return "
-            <div style='position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; max-width: 100%; border-radius: 8px; margin: 2rem 0; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);'>
-                <iframe 
-                    src='https://www.youtube.com/embed/{$videoId}' 
-                    style='position: absolute; top: 0; left: 0; width: 100%; height: 100%; border: 0;' 
-                    allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture' 
-                    allowfullscreen>
-                </iframe>
-            </div>";
-        }
-
-        return "
-        <div style='margin: 2rem 0;'>
-            <video controls style='width: 100%; border-radius: 8px; max-height: 480px; background: #000; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1);'>
-                <source src='" . htmlspecialchars($videoUrl) . "'>
-                Seu navegador não suporta o formato deste vídeo.
-            </video>
-        </div>";
-    }
-
-    private function renderizarCapa(array $noticias): string
+    private function renderizarHome(array $noticias): string
     {
         $cards = '';
         foreach ($noticias as $item) {
-            $dataPublicacao = date('d/m/Y H:i', strtotime($item['criado_em']));
-
-            $tagImagemCapa = '';
+            $dataCriacao = date('d/m/Y H:i', strtotime($item['criado_em']));
+            $imagemTag = '';
             if (!empty($item['imagem_destaque'])) {
-                $tagImagemCapa = "<img src='" . htmlspecialchars($item['imagem_destaque']) . "' alt='" . htmlspecialchars($item['titulo']) . "' style='width: 100%; height: 180px; object-fit: cover;'>";
+                $imagemTag = "<img src='" . htmlspecialchars($item['imagem_destaque']) . "' alt='" . htmlspecialchars($item['titulo']) . "' style='width: 100%; height: 200px; object-fit: cover; border-top-left-radius: 8px; border-top-right-radius: 8px;'>";
             }
 
             $cards .= "
-            <article style='background: white; border-radius: 8px; border: 1px solid #e5e7eb; overflow: hidden; display: flex; flex-direction: column;'>
-                {$tagImagemCapa}
-                <div style='padding: 20px; flex-grow: 1; display: flex; flex-direction: column;'>
-                    <span style='color: #2563eb; font-weight: 700; font-size: 0.8rem; text-transform: uppercase; margin-bottom: 8px;'>" . htmlspecialchars($item['categoria']) . "</span>
-                    <h2 style='font-size: 1.25rem; line-height: 1.4; margin: 0 0 10px 0;'>
-                        <a href='/noticia/" . urlencode($item['slug']) . "' style='color: #111827; text-decoration: none;'>" . htmlspecialchars($item['titulo']) . "</a>
+            <article style='background: white; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.1); display: flex; flex-direction: column; overflow: hidden;'>
+                {$imagemTag}
+                <div style='padding: 20px; flex: 1; display: flex; flex-direction: column;'>
+                    <span style='color: #2563eb; font-size: 0.8rem; font-weight: bold; text-transform: uppercase; margin-bottom: 8px; display: inline-block;'>" . htmlspecialchars($item['categoria']) . "</span>
+                    <h2 style='margin: 0 0 10px 0; font-size: 1.25rem; line-height: 1.4;'>
+                        <a href='/noticia/" . htmlspecialchars($item['slug']) . "' style='color: #111827; text-decoration: none;'>" . htmlspecialchars($item['titulo']) . "</a>
                     </h2>
-                    <p style='color: #4b5563; font-size: 0.95rem; line-height: 1.5; margin: 0 0 16px 0; flex-grow: 1;'>" . htmlspecialchars($item['conteudo_resumo']) . "</p>
-                    <div style='display: flex; justify-content: space-between; align-items: center; border-top: 1px solid #f3f4f6; padding-top: 12px; font-size: 0.8rem; color: #6b7280;'>
-                        <span>{$dataPublicacao}</span>
+                    <p style='color: #4b5563; font-size: 0.95rem; line-height: 1.5; margin-bottom: 16px; flex: 1;'>" . htmlspecialchars($item['conteudo_resumo']) . "</p>
+                    <div style='display: flex; justify-content: space-between; align-items: center; font-size: 0.8rem; color: #6b7280; border-top: 1px solid #f3f4f6; padding-top: 12px;'>
+                        <span>{$dataCriacao}</span>
                         <span>" . (int)$item['cliques_total'] . " leituras</span>
                     </div>
                 </div>
@@ -213,11 +140,8 @@ class PortalController
         }
 
         if (empty($cards)) {
-            $cards = "<p style='text-align: center; color: #6b7280; grid-column: 1 / -1; padding: 40px;'>Nenhuma notícia publicada até ao momento.</p>";
+            $cards = "<div style='grid-column: 1/-1; text-align: center; padding: 40px; color: #6b7280;'>Nenhuma matéria publicada até o momento.</div>";
         }
-
-        $adTopo = $this->renderizarBlocoPublicidade('horizontal');
-        $footer = $this->renderizarFooter();
 
         return "
         <!DOCTYPE html>
@@ -227,82 +151,83 @@ class PortalController
             <meta name='viewport' content='width=device-width, initial-scale=1.0'>
             <title>Radar Notícias - Tecnologia e Inovação</title>
             <style>
-                body { font-family: system-ui, -apple-system, sans-serif; background: #f9fafb; margin: 0; color: #111827; display: flex; flex-direction: column; min-height: 100vh; }
-                header { background: #1e293b; color: white; padding: 1.25rem 2rem; border-bottom: 3px solid #2563eb; }
-                .nav-container { max-width: 1100px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
-                .grid { max-width: 1100px; margin: 30px auto; padding: 0 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; flex-grow: 1; width: 100%; box-sizing: border-box; }
+                body { font-family: system-ui, -apple-system, sans-serif; background: #f8fafc; margin: 0; color: #0f172a; }
+                header { background: #0f172a; color: white; padding: 20px 24px; border-bottom: 2px solid #2563eb; }
+                .nav-container { max-width: 1200px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+                .nav-container h1 { margin: 0; font-size: 1.5rem; }
+                .nav-container a { color: white; text-decoration: none; font-weight: bold; }
+                .grid { max-width: 1200px; margin: 30px auto; padding: 0 20px; display: grid; grid-template-columns: repeat(auto-fill, minmax(320px, 1fr)); gap: 24px; }
+                footer { background: #0f172a; color: #94a3b8; padding: 32px 20px; margin-top: 60px; font-size: 0.9rem; border-top: 1px solid #1e293b; }
+                .footer-container { max-width: 1200px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; gap: 14px; text-align: center; }
+                .footer-links a { color: #cbd5e1; text-decoration: none; margin: 0 8px; }
+                .footer-links a:hover { color: #60a5fa; }
             </style>
         </head>
         <body>
             <header>
                 <div class='nav-container'>
-                    <h1 style='margin: 0; font-size: 1.5rem;'><a href='/' style='color: white; text-decoration: none;'>Radar Notícias</a></h1>
-                    <a href='/admin/dashboard' style='color: #cbd5e1; text-decoration: none; font-size: 0.9rem;'>Área do Redator</a>
+                    <h1><a href='/'>Radar Notícias</a></h1>
+                    <a href='/admin/dashboard' style='font-size: 0.9rem; background: #1e293b; padding: 6px 12px; border-radius: 4px;'>Área do Redator</a>
                 </div>
             </header>
-
-            <div style='max-width: 1100px; width: 100%; margin: 20px auto 0 auto; padding: 0 20px; box-sizing: border-box;'>
-                {$adTopo}
-            </div>
 
             <main class='grid'>
                 {$cards}
             </main>
-            {$footer}
+
+            <footer>
+                <div class='footer-container'>
+                    <div><strong>Radar Notícias</strong> — Curadoria tecnológica, análises editoriais e inovação.</div>
+                    <div class='footer-links'>
+                        <a href='/termos'>Termos de Uso</a> • 
+                        <a href='/privacidade'>Política de Privacidade</a> • 
+                        <a href='https://sqltecnologia.inf.br' target='_blank' rel='noopener noreferrer'>SQL Tecnologia</a>
+                    </div>
+                    <div>&copy; 2026 <strong>SQLTECNOLOGIA.INF.BR</strong> — Todos os direitos reservados.</div>
+                </div>
+            </footer>
         </body>
         </html>";
     }
 
-    private function renderizarArtigo(array $noticia, array $linksAfiliados = []): string
+    private function renderizarArtigo(array $noticia, array $afiliados): string
     {
-        $dataPublicacao = date('d/m/Y \à\s H:i', strtotime($noticia['criado_em']));
+        $dataCriacao = date('d/m/Y H:i', strtotime($noticia['criado_em']));
 
-        $tagImagemDestaque = '';
+        // Imagem interna de destaque opcional
+        $imagemHeader = '';
         if (!empty($noticia['imagem_destaque'])) {
-            $tagImagemDestaque = "<div style='margin-bottom: 2rem;'><img src='" . htmlspecialchars($noticia['imagem_destaque']) . "' alt='" . htmlspecialchars($noticia['titulo']) . "' style='width: 100%; max-height: 420px; object-fit: cover; border-radius: 8px;'></div>";
+            $imagemHeader = "<div style='margin-bottom: 24px;'><img src='" . htmlspecialchars($noticia['imagem_destaque']) . "' alt='" . htmlspecialchars($noticia['titulo']) . "' style='width: 100%; max-height: 480px; object-fit: cover; border-radius: 8px;'></div>";
         }
 
-        $playerVideo = $this->renderizarPlayerVideo($noticia['video_url'] ?? null);
-        $adArtigo = $this->renderizarBlocoPublicidade('horizontal');
+        // Permite tags HTML formatadas pelo TinyMCE (tabelas, listas, negrito, etc)
+        $tagsPermitidas = '<p><br><strong><b><em><i><u><h2><h3><h4><h5><h6><ul><ol><li><table><thead><tbody><tfoot><tr><th><td><blockquote><code><pre><a><hr>';
+        $conteudoFormatado = strip_tags($noticia['conteudo_completo'], $tagsPermitidas);
 
-        $seccaoEditorial = '';
+        // Parecer Editorial com suporte total a HTML e Tabelas
+        $boxEditorial = '';
         if (!empty($noticia['opiniao_editorial'])) {
-            $seccaoEditorial = "
-            <aside style='background: #eff6ff; border-left: 4px solid #2563eb; padding: 16px 20px; border-radius: 4px; margin: 2rem 0;'>
-                <h4 style='color: #1e40af; margin-top: 0; margin-bottom: 8px;'>Análise do Radar</h4>
-                <p style='color: #1e3a8a; line-height: 1.6; margin: 0; font-size: 0.95rem;'>" . nl2br(htmlspecialchars($noticia['opiniao_editorial'])) . "</p>
-            </aside>";
+            $opiniaoFormatada = strip_tags($noticia['opiniao_editorial'], $tagsPermitidas);
+            $boxEditorial = "
+            <div style='background: #eff6ff; border-left: 4px solid #3b82f6; padding: 24px; border-radius: 6px; margin: 30px 0;'>
+                <strong style='color: #1e40af; display: block; margin-bottom: 12px; font-size: 1.1rem;'>Análise Editorial Própria</strong>
+                <div class='artigo-corpo' style='color: #1e3a8a;'>
+                    {$opiniaoFormatada}
+                </div>
+            </div>";
         }
 
-        $seccaoAfiliados = '';
-        if (!empty($linksAfiliados)) {
-            $seccaoAfiliados = "
-            <div style='background: #f8fafc; border: 1px solid #cbd5e1; border-radius: 8px; padding: 20px; margin: 2rem 0;'>
-                <h4 style='margin: 0 0 12px 0; color: #0f172a; font-size: 1rem;'>Recomendações e Divulgação Relacionada</h4>
-                <ul style='list-style: none; padding: 0; margin: 0;'>";
-
-            foreach ($linksAfiliados as $link) {
-                $seccaoAfiliados .= "
-                    <li style='margin-bottom: 10px;'>
-                        <a href='/ir/" . (int)$link['id'] . "' target='_blank' rel='nofollow sponsored noopener' style='display: inline-flex; align-items: center; gap: 8px; color: #2563eb; font-weight: 600; text-decoration: none;'>
-                            <span style='background: #dbeafe; color: #1e40af; padding: 2px 8px; border-radius: 4px; font-size: 0.75rem; text-transform: uppercase;'>Parceria</span>
-                            " . htmlspecialchars($link['titulo']) . " &rarr;
-                        </a>
-                    </li>";
-            }
-
-            $seccaoAfiliados .= "</ul></div>";
+        // Vídeo
+        $boxVideo = '';
+        if (!empty($noticia['video_url'])) {
+            $boxVideo = "
+            <div style='margin: 30px 0;'>
+                <strong style='display: block; margin-bottom: 10px; color: #334155;'>Mídia Relacionada</strong>
+                <div style='position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 8px; background: #000;'>
+                    <iframe src='" . htmlspecialchars($noticia['video_url']) . "' style='position: absolute; top:0; left: 0; width: 100%; height: 100%; border: 0;' allowfullscreen></iframe>
+                </div>
+            </div>";
         }
-
-        $seccaoFonte = '';
-        if (!empty($noticia['url_fonte'])) {
-            $seccaoFonte = "
-            <p style='margin-top: 2rem; font-size: 0.85rem; color: #6b7280; border-top: 1px solid #e5e7eb; padding-top: 16px;'>
-                Fonte primária consultada: <a href='" . htmlspecialchars($noticia['url_fonte']) . "' target='_blank' rel='noopener noreferrer' style='color: #2563eb;'>" . htmlspecialchars($noticia['url_fonte']) . "</a>
-            </p>";
-        }
-
-        $footer = $this->renderizarFooter();
 
         return "
         <!DOCTYPE html>
@@ -311,77 +236,71 @@ class PortalController
             <meta charset='UTF-8'>
             <meta name='viewport' content='width=device-width, initial-scale=1.0'>
             <title>" . htmlspecialchars($noticia['titulo']) . " - Radar Notícias</title>
-            <meta name='description' content='" . htmlspecialchars($noticia['conteudo_resumo']) . "'>
             <style>
-                body { font-family: system-ui, -apple-system, sans-serif; background: #f9fafb; margin: 0; color: #111827; display: flex; flex-direction: column; min-height: 100vh; }
-                header { background: #1e293b; color: white; padding: 1.25rem 2rem; border-bottom: 3px solid #2563eb; }
-                .nav-container { max-width: 800px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
-                .content-container { max-width: 800px; width: 100%; margin: 40px auto; padding: 32px 24px; background: white; border-radius: 8px; border: 1px solid #e5e7eb; box-sizing: border-box; flex-grow: 1; }
-                .article-body { font-size: 1.1rem; line-height: 1.8; color: #374151; }
+                body { font-family: system-ui, -apple-system, sans-serif; background: #f8fafc; margin: 0; color: #0f172a; line-height: 1.7; }
+                header { background: #0f172a; color: white; padding: 18px 24px; border-bottom: 2px solid #2563eb; }
+                .nav-container { max-width: 900px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+                .nav-container a { color: white; text-decoration: none; font-weight: bold; }
+                .container { max-width: 900px; margin: 30px auto; background: white; padding: 40px; border-radius: 8px; box-shadow: 0 1px 3px rgba(0,0,0,0.08); }
+                .meta { color: #64748b; font-size: 0.9rem; margin-bottom: 24px; display: flex; gap: 15px; }
+                
+                /* Estilos das tabelas dentro do artigo e da análise editorial */
+                .artigo-corpo { font-size: 1.05rem; color: #1e293b; }
+                .artigo-corpo table { width: 100%; border-collapse: collapse; margin: 24px 0; font-size: 0.95rem; overflow-x: auto; display: block; }
+                .artigo-corpo th { background-color: #0f172a; color: #ffffff; padding: 12px 16px; border: 1px solid #cbd5e1; text-align: left; }
+                .artigo-corpo td { padding: 12px 16px; border: 1px solid #cbd5e1; color: #334155; }
+                .artigo-corpo tr:nth-child(even) { background-color: #f8fafc; }
+                .artigo-corpo ul, .artigo-corpo ol { padding-left: 24px; margin: 16px 0; }
+                .artigo-corpo li { margin-bottom: 8px; }
+                
+                footer { background: #0f172a; color: #94a3b8; padding: 32px 20px; margin-top: 60px; font-size: 0.9rem; text-align: center; }
+                .footer-links a { color: #cbd5e1; text-decoration: none; margin: 0 8px; }
             </style>
         </head>
         <body>
             <header>
                 <div class='nav-container'>
-                    <h1 style='margin: 0; font-size: 1.5rem;'><a href='/' style='color: white; text-decoration: none;'>Radar Notícias</a></h1>
-                    <a href='/' style='color: #cbd5e1; text-decoration: none; font-size: 0.9rem;'>← Início</a>
+                    <a href='/' style='font-size: 1.4rem;'>Radar Notícias</a>
+                    <a href='/' style='font-size: 0.9rem; color: #94a3b8;'>&larr; Voltar ao Portal</a>
                 </div>
             </header>
-            <main class='content-container'>
-                <span style='color: #2563eb; font-weight: 700; font-size: 0.85rem; text-transform: uppercase;'>" . htmlspecialchars($noticia['categoria']) . "</span>
-                <h1 style='font-size: 2.1rem; line-height: 1.3; margin: 12px 0 16px 0;'>" . htmlspecialchars($noticia['titulo']) . "</h1>
-                <p style='color: #6b7280; font-size: 0.9rem; margin-bottom: 24px;'>Publicado em {$dataPublicacao} • " . (int)$noticia['cliques_total'] . " leituras</p>
+
+            <main class='container'>
+                <span style='color: #2563eb; font-weight: bold; text-transform: uppercase; font-size: 0.85rem;'>" . htmlspecialchars($noticia['categoria']) . "</span>
+                <h1 style='margin: 10px 0 16px 0; font-size: 2.2rem; line-height: 1.3;'>" . htmlspecialchars($noticia['titulo']) . "</h1>
                 
-                <p style='font-size: 1.15rem; color: #4b5563; font-style: italic; border-left: 3px solid #9ca3af; padding-left: 14px; margin-bottom: 30px;'>
-                    " . htmlspecialchars($noticia['conteudo_resumo']) . "
-                </p>
-
-                {$tagImagemDestaque}
-                {$playerVideo}
-
-                <div class='article-body'>
-                    " . nl2br(htmlspecialchars($noticia['conteudo_completo'])) . "
+                <div class='meta'>
+                    <span>Publicado em: {$dataCriacao}</span>
+                    <span>•</span>
+                    <span>Visualizações: " . (int)$noticia['cliques_total'] . "</span>
                 </div>
 
-                {$adArtigo}
-                {$seccaoEditorial}
-                {$seccaoAfiliados}
-                {$seccaoFonte}
+                {$imagemHeader}
+
+                <div class='artigo-corpo'>
+                    {$conteudoFormatado}
+                </div>
+
+                {$boxEditorial}
+                {$boxVideo}
             </main>
-            {$footer}
+
+            <footer>
+                <div style='max-width: 900px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px;'>
+                    <div class='footer-links'>
+                        <a href='/termos'>Termos de Uso</a> • 
+                        <a href='/privacidade'>Política de Privacidade</a> • 
+                        <a href='https://sqltecnologia.inf.br' target='_blank' rel='noopener noreferrer'>SQL Tecnologia</a>
+                    </div>
+                    <div>&copy; 2026 <strong>SQLTECNOLOGIA.INF.BR</strong> — Todos os direitos reservados.</div>
+                </div>
+            </footer>
         </body>
         </html>";
     }
 
-    private function renderizarFooter(): string
+    private function renderizarPaginaInstitucional(string $titulo, string $corpoHtml): string
     {
-        $anoAtual = date('Y');
-        return "
-        <footer style='background: #0f172a; color: #94a3b8; padding: 40px 20px; margin-top: 60px; border-top: 1px solid #334155; font-size: 0.9rem;'>
-            <div style='max-width: 1100px; margin: 0 auto; display: flex; flex-direction: column; align-items: center; text-align: center; gap: 16px;'>
-                <div>
-                    <strong style='color: white; font-size: 1.1rem;'>Radar Notícias</strong>
-                    <p style='margin: 6px 0 0 0; color: #64748b;'>Curadoria tecnológica, análises editoriais e inovação.</p>
-                </div>
-
-                <div style='display: flex; gap: 20px; font-size: 0.85rem;'>
-                    <a href='/termos' style='color: #cbd5e1; text-decoration: none;'>Termos de Uso</a>
-                    <span style='color: #475569;'>•</span>
-                    <a href='/privacidade' style='color: #cbd5e1; text-decoration: none;'>Política de Privacidade</a>
-                    <span style='color: #475569;'>•</span>
-                    <a href='https://sqltecnologia.inf.br' target='_blank' rel='noopener noreferrer' style='color: #38bdf8; text-decoration: none; font-weight: 500;'>SQL Tecnologia</a>
-                </div>
-
-                <div style='border-top: 1px solid #1e293b; width: 100%; max-width: 600px; padding-top: 16px; font-size: 0.8rem; color: #64748b;'>
-                    © {$anoAtual} <strong>SQLTECNOLOGIA.INF.BR</strong> — Todos os direitos reservados.
-                </div>
-            </div>
-        </footer>";
-    }
-
-    private function renderizarPaginaInstitucional(string $titulo, string $texto): string
-    {
-        $footer = $this->renderizarFooter();
         return "
         <!DOCTYPE html>
         <html lang='pt-BR'>
@@ -390,24 +309,41 @@ class PortalController
             <meta name='viewport' content='width=device-width, initial-scale=1.0'>
             <title>{$titulo} - Radar Notícias</title>
             <style>
-                body { font-family: system-ui, -apple-system, sans-serif; background: #f9fafb; margin: 0; color: #111827; display: flex; flex-direction: column; min-height: 100vh; }
-                header { background: #1e293b; color: white; padding: 1.25rem 2rem; border-bottom: 3px solid #2563eb; }
-                .nav-container { max-width: 800px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
-                .content { max-width: 800px; width: 100%; margin: 40px auto; padding: 32px 24px; background: white; border-radius: 8px; border: 1px solid #e5e7eb; box-sizing: border-box; flex-grow: 1; }
+                body { font-family: system-ui, -apple-system, sans-serif; background: #0f172a; margin: 0; color: #334155; }
+                header { background: #0f172a; color: white; padding: 20px 24px; border-bottom: 2px solid #2563eb; }
+                .nav-container { max-width: 960px; margin: 0 auto; display: flex; justify-content: space-between; align-items: center; }
+                .nav-container a { color: white; text-decoration: none; font-weight: bold; }
+                .container { max-width: 960px; margin: 40px auto; background: white; padding: 36px 40px; border-radius: 8px; box-shadow: 0 4px 6px -1px rgba(0,0,0,0.1); line-height: 1.7; }
+                h2 { color: #0f172a; margin-top: 0; border-bottom: 2px solid #e2e8f0; padding-bottom: 12px; }
+                h3 { color: #1e293b; margin-top: 24px; }
+                a { color: #2563eb; }
+                footer { background: #0f172a; color: #94a3b8; padding: 32px 20px; text-align: center; font-size: 0.9rem; border-top: 1px solid #1e293b; }
+                .footer-links a { color: #cbd5e1; text-decoration: none; margin: 0 8px; }
             </style>
         </head>
         <body>
             <header>
                 <div class='nav-container'>
-                    <h1 style='margin: 0; font-size: 1.5rem;'><a href='/' style='color: white; text-decoration: none;'>Radar Notícias</a></h1>
-                    <a href='/' style='color: #cbd5e1; text-decoration: none; font-size: 0.9rem;'>← Início</a>
+                    <a href='/' style='font-size: 1.4rem;'>Radar Notícias</a>
+                    <a href='/' style='font-size: 0.9rem; color: #94a3b8;'>&larr; Início</a>
                 </div>
             </header>
-            <main class='content'>
-                <h1 style='margin-top: 0;'>{$titulo}</h1>
-                <p style='line-height: 1.7; color: #374151; font-size: 1.05rem;'>{$texto}</p>
+
+            <main class='container'>
+                <h2>{$titulo}</h2>
+                {$corpoHtml}
             </main>
-            {$footer}
+
+            <footer>
+                <div style='max-width: 960px; margin: 0 auto; display: flex; flex-direction: column; gap: 12px;'>
+                    <div class='footer-links'>
+                        <a href='/termos'>Termos de Uso</a> • 
+                        <a href='/privacidade'>Política de Privacidade</a> • 
+                        <a href='https://sqltecnologia.inf.br' target='_blank' rel='noopener noreferrer'>SQL Tecnologia</a>
+                    </div>
+                    <div>&copy; 2026 <strong>SQLTECNOLOGIA.INF.BR</strong> — Todos os direitos reservados.</div>
+                </div>
+            </footer>
         </body>
         </html>";
     }
