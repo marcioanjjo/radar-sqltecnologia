@@ -50,32 +50,32 @@ Local: Docker + Docker Compose (Nginx, PHP-FPM, MySQL).
 
 Produção: Servidor Linux (HostGator), com segregação segura entre diretório raiz de código (radar_backend) e diretório estático público (public_html / subdomínio com SSL).
 
-📂 Estrutura de Pastas
+### 📁 Estrutura de Pastas
 
+```text
 ├── radar_backend/
 │   ├── bin/
-│   │   └── cron_gemini.php      # Rotina de automação disparada por Cron
+│   │   └── cron_gemini.php          # Rotina de automação disparada via Cron
 │   ├── src/
 │   │   ├── Config/
-│   │   │   └── Database.php     # Conexão singleton PDO
+│   │   │   └── Database.php         # Conexão singleton PDO com MySQL
 │   │   ├── Controllers/
-│   │   │   ├── NoticiaAdminController.php # CMS de criação e upload
-│   │   │   └── PortalController.php       # Renderização das matérias e home
+│   │   │   ├── NoticiaAdminController.php # CMS administrativo, upload e edição
+│   │   │   └── PortalController.php       # Renderização pública do portal e rotas
 │   │   ├── Middlewares/
 │   │   │   └── AdminAuthMiddleware.php    # Proteção de rotas da redação
 │   │   └── Services/
-│   │       └── GeminiCuratorService.php   # Chamadas de IA e estruturação
+│   │       └── GeminiCuratorService.php   # Chamadas ao Gemini e estruturação
 │   ├── composer.json
 │   └── .env.example
-├── radar.sqltecnologia.inf.br/   # Raiz pública acessível via Web
-│   ├── assets/                  # CSS, JS e fontes
-│   ├── uploads/                 # Mídias e imagens enviadas via CMS
-│   ├── .htaccess                # Regras de rewrite e segurança
-│   ├── ads.txt                  # Validação do Google AdSense
-│   └── index.php                # Front controller Slim
+├── radar.sqltecnologia.inf.br/      # Raiz pública (Web Root no HostGator)
+│   ├── assets/                      # Arquivos CSS, JavaScript e fontes
+│   ├── uploads/                     # Mídias locais enviadas pelo painel
+│   ├── .htaccess                    # Regras mod_rewrite para o Slim
+│   ├── ads.txt                      # Validação oficial do Google AdSense
+│   └── index.php                    # Front Controller da aplicação
 └── README.md
-
-
+```
 ⚙️ Configuração e Instalação
 
 Pré-requisitos
