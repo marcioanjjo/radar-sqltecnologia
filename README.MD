@@ -88,19 +88,19 @@ Chave de API ativa do Google AI Studio (Gemini API).
 
 Passo a Passo
 
-Clonar o repositório:
+1. Clonar o repositório:
 
 git clone https://github.com/seu-usuario/radar-noticias.git
 cd radar-noticias
 
 
-Instalar dependências:
+2. Instalar dependências:
 
 cd radar_backend
 composer install --no-dev --optimize-autoloader
 
 
-Configurar variáveis de ambiente:
+3. Configurar variáveis de ambiente:
 Copie o modelo e preencha suas credenciais:
 
 cp .env.example .env
@@ -119,13 +119,13 @@ DB_PASS=sua_senha
 GEMINI_API_KEY=sua_chave_aqui
 
 
-Importar banco de dados:
+4. Importar banco de dados:
 Execute a estrutura de tabelas (noticias, categorias, afiliados, usuarios_admin) e a view de compatibilidade links_afiliados.
 
-Configurar permissões de upload:
+5. Configurar permissões de upload:
 Certifique-se de que a pasta uploads do subdomínio público tenha permissão de escrita (0755).
 
-Configurar Cron de Automação (cPanel / Linux):
+6. Configurar Cron de Automação (cPanel / Linux):
 
 0 */4 * * * /usr/bin/php /caminho/para/radar_backend/bin/cron_gemini.php >> /caminho/para/radar_backend/cron.log 2>&1
 
