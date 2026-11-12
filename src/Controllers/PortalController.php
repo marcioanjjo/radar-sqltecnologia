@@ -47,8 +47,8 @@ class PortalController
         $updateStmt = $pdo->prepare("UPDATE noticias SET cliques_total = cliques_total + 1 WHERE id = :id");
         $updateStmt->execute([':id' => $noticia['id']]);
 
-        // Consulta de afiliados vinculados
-        $afiliadosStmt = $pdo->prepare("SELECT * FROM links_afiliados WHERE noticia_id = :id AND status = 'ativo' LIMIT 4");
+        // Consulta de afiliados vinculados (usando a coluna real 'ativo = 1')
+        $afiliadosStmt = $pdo->prepare("SELECT * FROM links_afiliados WHERE noticia_id = :id AND ativo = 1 LIMIT 4");
         $afiliadosStmt->execute([':id' => $noticia['id']]);
         $afiliados = $afiliadosStmt->fetchAll(PDO::FETCH_ASSOC);
 
@@ -110,6 +110,24 @@ class PortalController
         $html = $this->renderizarPaginaInstitucional('Política de Privacidade', $conteudo);
         $response->getBody()->write($html);
         return $response->withHeader('Content-Type', 'text/html; charset=UTF-8');
+    }
+
+    /**
+     * Converte links comuns do YouTube (watch, youtu.be, shorts) para o formato /embed/
+     */
+    private function formatarUrlVideo(string $url): string
+    {
+        $url = trim($url);
+        if (empty($url)) {
+            return '';
+        }
+
+        // Captura o ID do vídeo em formatos youtube.com/watch?v=, youtu.be/, youtube.com/shorts/ ou youtube.com/embed/
+        if (preg_match('/(?:youtube\.com\/(?:watch\?v=|embed\/|shorts\/)|youtu\.be\/)([a-zA-Z0-9_-]{11})/', $url, $matches)) {
+            return 'https://www.youtube.com/embed/' . $matches[1];
+        }
+
+        return $url;
     }
 
     private function renderizarHome(array $noticias): string
@@ -200,6 +218,18 @@ class PortalController
             $imagemHeader = "<div style='margin-bottom: 24px;'><img src='" . htmlspecialchars($noticia['imagem_destaque']) . "' alt='" . htmlspecialchars($noticia['titulo']) . "' style='width: 100%; max-height: 480px; object-fit: cover; border-radius: 8px;'></div>";
         }
 
+        // Vídeo convertido para embed e posicionado no topo do artigo
+        $boxVideo = '';
+        if (!empty($noticia['video_url'])) {
+            $videoEmbedUrl = $this->formatarUrlVideo($noticia['video_url']);
+            $boxVideo = "
+            <div style='margin: 24px 0;'>
+                <div style='position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 8px; background: #000;'>
+                    <iframe src='" . htmlspecialchars($videoEmbedUrl) . "' style='position: absolute; top:0; left: 0; width: 100%; height: 100%; border: 0;' allow='accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture' allowfullscreen></iframe>
+                </div>
+            </div>";
+        }
+
         // Permite tags HTML formatadas pelo TinyMCE (tabelas, listas, negrito, etc)
         $tagsPermitidas = '<p><br><strong><b><em><i><u><h2><h3><h4><h5><h6><ul><ol><li><table><thead><tbody><tfoot><tr><th><td><blockquote><code><pre><a><hr>';
         $conteudoFormatado = strip_tags($noticia['conteudo_completo'], $tagsPermitidas);
@@ -217,15 +247,20 @@ class PortalController
             </div>";
         }
 
-        // Vídeo
-        $boxVideo = '';
-        if (!empty($noticia['video_url'])) {
-            $boxVideo = "
-            <div style='margin: 30px 0;'>
-                <strong style='display: block; margin-bottom: 10px; color: #334155;'>Mídia Relacionada</strong>
-                <div style='position: relative; padding-bottom: 56.25%; height: 0; overflow: hidden; border-radius: 8px; background: #000;'>
-                    <iframe src='" . htmlspecialchars($noticia['video_url']) . "' style='position: absolute; top:0; left: 0; width: 100%; height: 100%; border: 0;' allowfullscreen></iframe>
-                </div>
+        // Bloco de Afiliados (se houver links vinculados)
+        $boxAfiliados = '';
+        if (!empty($afiliados)) {
+            $itensAfiliados = '';
+            foreach ($afiliados as $af) {
+                $itensAfiliados .= "
+                <a href='" . htmlspecialchars($af['url_destino']) . "' target='_blank' rel='nofollow sponsored noopener' style='display: block; background: #f8fafc; border: 1px solid #cbd5e1; padding: 12px 16px; border-radius: 6px; text-decoration: none; color: #0f172a; font-weight: 600; margin-bottom: 8px;'>
+                    &#128279; " . htmlspecialchars($af['titulo']) . " &rarr;
+                </a>";
+            }
+            $boxAfiliados = "
+            <div style='margin-top: 32px; padding-top: 20px; border-top: 1px solid #e2e8f0;'>
+                <strong style='display: block; margin-bottom: 12px; color: #475569; font-size: 0.95rem;'>Links e Recursos Relacionados:</strong>
+                {$itensAfiliados}
             </div>";
         }
 
@@ -276,13 +311,14 @@ class PortalController
                 </div>
 
                 {$imagemHeader}
+                {$boxVideo}
 
                 <div class='artigo-corpo'>
                     {$conteudoFormatado}
                 </div>
 
                 {$boxEditorial}
-                {$boxVideo}
+                {$boxAfiliados}
             </main>
 
             <footer>
